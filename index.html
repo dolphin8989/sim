@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- K군의 시뮬레이터 모음 — © 2026 Kim,JongUk. All rights reserved. 본 프로그램의 저작권은 개발자에게 있으며, 교육 목적으로만 사용할 수 있습니다. 무단 복제·수정·재배포를 금지합니다. -->
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="author" content="Kim,JongUk">
+<title>K군의 시뮬레이터 · K's Simulators</title>
+<style>
+:root{--bg:#0f1419;--card:#18202a;--line:#2a3542;--tx:#e8eef4;--tx2:#9fb0c0;--acc:#2dd4bf}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){--bg:#f4f6f8;--card:#fff;--line:#d7dde3;--tx:#16202a;--tx2:#5b6b7a;--acc:#0f9488}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+main{max-width:980px;margin:0 auto;padding:28px 16px 24px}
+.bar{display:flex;justify-content:flex-end;margin-bottom:14px}
+.lang{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
+.lang button{border:0;background:none;color:var(--tx2);font:600 13px system-ui,sans-serif;padding:6px 12px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--acc);color:#04211d}
+.lang button:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+h1{margin:0 0 6px;font-size:28px}p.lead{margin:0 0 28px;color:var(--tx2)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+a.card{display:flex;flex-direction:column;gap:8px;padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+a.card:hover,a.card:focus-visible{border-color:var(--acc);transform:translateY(-2px);outline:none}
+.top{display:flex;align-items:center;gap:10px}.ic{font-size:28px}.nm{font-weight:700;font-size:17px}.ver{margin-left:auto;font:600 12px ui-monospace,monospace;color:var(--acc);border:1px solid var(--line);border-radius:6px;padding:2px 6px;white-space:nowrap}
+.ds{color:var(--tx2);font-size:14px}.go{margin-top:auto;color:var(--acc);font-weight:600;font-size:14px}
+footer{max-width:980px;margin:0 auto;padding:16px;color:var(--tx2);font-size:13px;border-top:1px solid var(--line)}
+</style></head><body><main>
+<div class="bar"><div class="lang" role="group" aria-label="Language / 언어"><button type="button" data-l="ko">한국어</button><button type="button" data-l="en">English</button></div></div>
+<h1 data-ko="K군의 시뮬레이터" data-en="K's Simulators">K군의 시뮬레이터</h1>
+<p class="lead" data-ko="설치 없이 브라우저에서 바로 쓰는 교육용 프로그램입니다. 카드를 누르면 열립니다(파일을 내려받으면 인터넷 없이도 실행됩니다)." data-en="Educational programs that run right in your browser — nothing to install. Click a card to open it (a downloaded file also works offline).">설치 없이 브라우저에서 바로 쓰는 교육용 프로그램입니다. 카드를 누르면 열립니다(파일을 내려받으면 인터넷 없이도 실행됩니다).</p>
+<div class="grid"><a class="card" href="embedded.html" data-file="embedded.html"><div class="top"><span class="ic">🔧</span><span class="nm" data-ko="K군의 아두이노 시뮬레이터" data-en="K's Arduino Simulator">K군의 아두이노 시뮬레이터</span><span class="ver">Ver1.13</span></div><div class="ds" data-ko="아두이노 R3·R4·메가·ESP32 회로 배선과 코드 실행, 오실로스코프" data-en="Wire Arduino R3 · R4 · Mega · ESP32 circuits and run your code, with an oscilloscope">아두이노 R3·R4·메가·ESP32 회로 배선과 코드 실행, 오실로스코프</div><div class="go" data-ko="열기 →" data-en="Open →">열기 →</div></a><a class="card" href="PLCS.html" data-file="PLCS.html"><div class="top"><span class="ic">🔌</span><span class="nm" data-ko="K군의 PLC 시뮬레이터" data-en="K's PLC Simulator">K군의 PLC 시뮬레이터</span><span class="ver">Ver1.03</span></div><div class="ds" data-ko="4개 회사 PLC 래더·ST, HMI, 시퀀스·공압·유압 실습장치" data-en="Ladder &amp; ST for four PLC makers, HMI, sequence / pneumatic / hydraulic trainers">4개 회사 PLC 래더·ST, HMI, 시퀀스·공압·유압 실습장치</div><div class="go" data-ko="열기 →" data-en="Open →">열기 →</div></a><a class="card" href="ITS.html" data-file="ITS.html"><div class="top"><span class="ic">🧩</span><span class="nm" data-ko="K군의 통합 시뮬레이터" data-en="K's Integrated Simulator">K군의 통합 시뮬레이터</span><span class="ver">Ver1.07</span></div><div class="ds" data-ko="아두이노 + PLC를 한 화면에서, Modbus로 서로 연동" data-en="Arduino + PLC on one screen, linked over Modbus">아두이노 + PLC를 한 화면에서, Modbus로 서로 연동</div><div class="go" data-ko="열기 →" data-en="Open →">열기 →</div></a><a class="card" href="CAD.html" data-file="CAD.html"><div class="top"><span class="ic">📐</span><span class="nm" data-ko="K군의 CAD" data-en="K-CAD">K군의 CAD</span><span class="ver">v0.98</span></div><div class="ds" data-ko="3D 부품·어셈블리 모델링, 2D 도면(투상도·치수), CAM, 구조·열·유동 해석" data-en="3D parts &amp; assemblies, 2D drawings (views · dimensions), CAM, structural / thermal / flow analysis">3D 부품·어셈블리 모델링, 2D 도면(투상도·치수), CAM, 구조·열·유동 해석</div><div class="go" data-ko="열기 →" data-en="Open →">열기 →</div></a><a class="card" href="ROBOTS.html" data-file="ROBOTS.html"><div class="top"><span class="ic">🦾</span><span class="nm" data-ko="K군의 로봇 시뮬레이터" data-en="K's Robot Simulator">K군의 로봇 시뮬레이터</span><span class="ver">Ver0.7</span></div><div class="ds" data-ko="UR·뉴로메카 Indy 협동로봇 가상 티칭, URScript, 클램프·지그 신호, 손목 카메라" data-en="Virtual teaching for UR &amp; Neuromeka Indy cobots, URScript, clamp / fixture signals, wrist camera">UR·뉴로메카 Indy 협동로봇 가상 티칭, URScript, 클램프·지그 신호, 손목 카메라</div><div class="go" data-ko="열기 →" data-en="Open →">열기 →</div></a></div>
+</main><footer data-ko="개발: Kim,JongUk · © 2026 Kim,JongUk. All rights reserved. 본 프로그램의 저작권은 개발자에게 있으며, 교육 목적으로만 사용할 수 있습니다. 무단 복제·수정·재배포를 금지합니다." data-en="Developer: Kim,JongUk · © 2026 Kim,JongUk. All rights reserved. For educational use only. Copying, modifying or redistributing without permission is prohibited.">개발: Kim,JongUk · © 2026 Kim,JongUk. All rights reserved. 본 프로그램의 저작권은 개발자에게 있으며, 교육 목적으로만 사용할 수 있습니다. 무단 복제·수정·재배포를 금지합니다.</footer>
+<script>
+(function(){
+  var KEY = 'ksim.lang';
+  function pick(){ try { var s = localStorage.getItem(KEY); if (s === 'ko' || s === 'en') return s; } catch (e) {} return /^ko/i.test(navigator.language || 'ko') ? 'ko' : 'en'; }
+  function apply(l){
+    document.documentElement.lang = l;
+    document.title = l === 'en' ? "K's Simulators" : 'K군의 시뮬레이터';
+    document.querySelectorAll('[data-ko]').forEach(function(e){ e.textContent = e.getAttribute('data-' + l); });
+    document.querySelectorAll('a.card').forEach(function(a){ a.href = a.getAttribute('data-file') + '?lang=' + l; });
+    document.querySelectorAll('.lang button').forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-l') === l ? 'true' : 'false'); });
+    try { localStorage.setItem(KEY, l); } catch (e) {}
+  }
+  document.querySelectorAll('.lang button').forEach(function(b){ b.addEventListener('click', function(){ apply(b.getAttribute('data-l')); }); });
+  apply(pick());
+})();
+</script></body></html>
