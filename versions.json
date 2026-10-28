@@ -1,5 +1,5 @@
 {
- "built": "2026-10-27T11:15:46.207Z",
+ "built": "2026-10-28T12:56:46.670Z",
  "author": "Kim,JongUk",
  "apps": [
   {
@@ -46,8 +46,8 @@
    "file": "ROBOTS.html",
    "title": "K군의 로봇 시뮬레이터",
    "en": "K's Robot Simulator",
-   "ver": "Ver0.8",
-   "kb": 1418,
+   "ver": "Ver0.903",
+   "kb": 1495,
    "icon": "🦾",
    "desc": "UR·뉴로메카 Indy 협동로봇 가상 티칭, URScript, 클램프·지그 신호, 손목 카메라",
    "descEn": "Virtual teaching for UR & Neuromeka Indy cobots, URScript, clamp / fixture signals, wrist camera"
