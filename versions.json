@@ -1,13 +1,13 @@
 {
- "built": "2026-10-28T12:56:46.670Z",
+ "built": "2026-10-29T23:41:58.525Z",
  "author": "Kim,JongUk",
  "apps": [
   {
    "file": "embedded.html",
    "title": "K군의 아두이노 시뮬레이터",
    "en": "K's Arduino Simulator",
-   "ver": "Ver1.14",
-   "kb": 1585,
+   "ver": "Ver1.16",
+   "kb": 1606,
    "icon": "🔧",
    "desc": "아두이노 R3·R4·메가·ESP32 회로 배선과 코드 실행, 오실로스코프",
    "descEn": "Wire Arduino R3 · R4 · Mega · ESP32 circuits and run your code, with an oscilloscope"
@@ -26,8 +26,8 @@
    "file": "ITS.html",
    "title": "K군의 통합 시뮬레이터",
    "en": "K's Integrated Simulator",
-   "ver": "Ver1.08",
-   "kb": 3484,
+   "ver": "Ver1.10",
+   "kb": 3505,
    "icon": "🧩",
    "desc": "아두이노 + PLC를 한 화면에서, Modbus로 서로 연동",
    "descEn": "Arduino + PLC on one screen, linked over Modbus"
