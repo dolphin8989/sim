@@ -7,10 +7,10 @@ Educational programs that run in the browser — developer: Kim,JongUk
 
 | 프로그램 / Program | 버전 | 파일 |
 |---|---|---|
-| 🔧 K군의 아두이노 시뮬레이터 · K's Arduino Simulator | Ver1.21 | [embedded.html](https://dolphin8989.github.io/sim/embedded.html) |
-| 🔌 K군의 PLC 시뮬레이터 · K's PLC Simulator | Ver1.05 | [PLCS.html](https://dolphin8989.github.io/sim/PLCS.html) |
-| 🧩 K군의 통합 시뮬레이터 · K's Integrated Simulator | Ver1.15 | [ITS.html](https://dolphin8989.github.io/sim/ITS.html) |
-| 📐 K군의 CAD · K-CAD | v1.05 | [CAD.html](https://dolphin8989.github.io/sim/CAD.html) |
+| 🔧 K군의 아두이노 시뮬레이터 · K's Arduino Simulator | Ver1.22 | [embedded.html](https://dolphin8989.github.io/sim/embedded.html) |
+| 🔌 K군의 PLC 시뮬레이터 · K's PLC Simulator | Ver1.07 | [PLCS.html](https://dolphin8989.github.io/sim/PLCS.html) |
+| 🧩 K군의 통합 시뮬레이터 · K's Integrated Simulator | Ver1.18 | [ITS.html](https://dolphin8989.github.io/sim/ITS.html) |
+| 📐 K군의 CAD · K-CAD | v1.07 | [CAD.html](https://dolphin8989.github.io/sim/CAD.html) |
 | 🦾 K군의 로봇 시뮬레이터 · K's Robot Simulator | Ver0.904 | [ROBOTS.html](https://dolphin8989.github.io/sim/ROBOTS.html) |
 
 각 파일은 혼자서 열리는 HTML입니다(내려받아 인터넷 없이도 실행). AI 도우미를 쓸 때만 인터넷이 필요합니다.
