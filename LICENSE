@@ -9,4 +9,5 @@ Modification, reverse engineering, redistribution, re-hosting or sale without th
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 
 Third-party: three.js (MIT License, Copyright 2010-2021 three.js authors) is included in CAD.html and ROBOTS.html under its own license.
+Third-party: Blockly 13.4.0 (Apache License 2.0, Copyright Google LLC, https://github.com/google/blockly) is included in embedded.html and ITS.html under its own license (https://www.apache.org/licenses/LICENSE-2.0).
 Fonts: Gaegu (Copyright 2018 The Gaegu Project Authors) and Courier Prime (Copyright 2015 The Courier Prime Project Authors) are embedded in the HTML files under the SIL Open Font License 1.1 (https://openfontlicense.org).
