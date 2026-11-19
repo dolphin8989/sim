@@ -11,3 +11,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 Third-party: three.js (MIT License, Copyright 2010-2021 three.js authors) is included in CAD.html and ROBOTS.html under its own license.
 Third-party: Blockly 13.4.0 (Apache License 2.0, Copyright Google LLC, https://github.com/google/blockly) is included in embedded.html and ITS.html under its own license (https://www.apache.org/licenses/LICENSE-2.0).
 Fonts: Gaegu (Copyright 2018 The Gaegu Project Authors) and Courier Prime (Copyright 2015 The Courier Prime Project Authors) are embedded in the HTML files under the SIL Open Font License 1.1 (https://openfontlicense.org).
+
+Trademarks / 상표: Arduino (Arduino S.r.l.), ESP32 (Espressif Systems), RA4M1 (Renesas Electronics), ATmega (Microchip Technology), XGB · XG5000 (LS ELECTRIC), MELSEC · GX Works (Mitsubishi Electric), SIMATIC · S7 · TIA Portal (Siemens AG), SYSMAC · CP1E (OMRON Corporation), Universal Robots · UR · URScript (Universal Robots A/S), Indy (Neuromeka), RealSense (Intel), Isaac (NVIDIA), Meta Quest (Meta Platforms) are trademarks of their respective owners.
+These programs are not affiliated with, endorsed or sponsored by these companies. Names are used only to describe compatible behaviour; device drawings are simplified educational illustrations without company logos.
+이 프로그램들은 위 회사들과 관계가 없으며 승인 · 후원을 받지 않았습니다. 이름은 호환 동작을 설명하기 위해서만 쓰며, 기기 그림은 회사 로고가 없는 교육용 호환 그림입니다.
