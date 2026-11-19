@@ -8,7 +8,7 @@ Educational programs that run in the browser — developer: Kim,JongUk
 | 프로그램 / Program | 버전 | 파일 |
 |---|---|---|
 | 🔧 K군의 아두이노 시뮬레이터 · K's Arduino Simulator | Ver1.39 | [embedded.html](https://dolphin8989.github.io/sim/embedded.html) |
-| 🔌 K군의 PLC 시뮬레이터 · K's PLC Simulator | Ver1.19 | [PLCS.html](https://dolphin8989.github.io/sim/PLCS.html) |
+| 🔌 K군의 PLC 시뮬레이터 · K's PLC Simulator | Ver1.21 | [PLCS.html](https://dolphin8989.github.io/sim/PLCS.html) |
 | 🧩 K군의 통합 시뮬레이터 · K's Integrated Simulator | Ver1.21 | [ITS.html](https://dolphin8989.github.io/sim/ITS.html) |
 | 📐 K군의 CAD · K-CAD | v1.08 | [CAD.html](https://dolphin8989.github.io/sim/CAD.html) |
 | 🦾 K군의 로봇 시뮬레이터 · K's Robot Simulator | Ver0.91 | [ROBOTS.html](https://dolphin8989.github.io/sim/ROBOTS.html) |

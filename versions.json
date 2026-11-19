@@ -1,5 +1,5 @@
 {
- "built": "2026-11-18T12:13:43.213Z",
+ "built": "2026-11-19T02:52:43.311Z",
  "author": "Kim,JongUk",
  "apps": [
   {
@@ -16,8 +16,8 @@
    "file": "PLCS.html",
    "title": "K군의 PLC 시뮬레이터",
    "en": "K's PLC Simulator",
-   "ver": "Ver1.19",
-   "kb": 1914,
+   "ver": "Ver1.21",
+   "kb": 1934,
    "icon": "🔌",
    "desc": "4개 회사 PLC 래더·ST, HMI, 시퀀스·공압·유압 실습장치",
    "descEn": "Ladder & ST for four PLC makers, HMI, sequence / pneumatic / hydraulic trainers"
@@ -27,7 +27,7 @@
    "title": "K군의 통합 시뮬레이터",
    "en": "K's Integrated Simulator",
    "ver": "Ver1.21",
-   "kb": 6266,
+   "kb": 6298,
    "icon": "🧩",
    "desc": "아두이노 + PLC를 한 화면에서, Modbus로 서로 연동",
    "descEn": "Arduino + PLC on one screen, linked over Modbus"
