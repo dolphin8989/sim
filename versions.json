@@ -1,13 +1,13 @@
 {
- "built": "2026-11-20T00:25:22.590Z",
+ "built": "2026-11-26T10:42:12.000Z",
  "author": "Kim,JongUk",
  "apps": [
   {
    "file": "embedded.html",
    "title": "K군의 임베디드 시뮬레이터",
    "en": "K's Embedded Simulator",
-   "ver": "Ver1.44",
-   "kb": 3494,
+   "ver": "Ver1.45",
+   "kb": 4656,
    "icon": "🔧",
    "desc": "아두이노 호환 보드(UNO R3·R4·Mega)·ESP32 회로 배선과 코드 실행, 오실로스코프",
    "descEn": "Wire Arduino-compatible (UNO R3 · R4 · Mega) and ESP32 circuits and run your code, with an oscilloscope"
@@ -26,8 +26,8 @@
    "file": "ITS.html",
    "title": "K군의 통합 시뮬레이터",
    "en": "K's Integrated Simulator",
-   "ver": "Ver1.27",
-   "kb": 8606,
+   "ver": "Ver1.28",
+   "kb": 8614,
    "icon": "🧩",
    "desc": "임베디드(아두이노 호환) + PLC를 한 화면에서, Modbus로 서로 연동",
    "descEn": "Arduino + PLC on one screen, linked over Modbus"
@@ -37,7 +37,7 @@
    "title": "K군의 CAD",
    "en": "K-CAD",
    "ver": "v1.08",
-   "kb": 2120,
+   "kb": 2255,
    "icon": "📐",
    "desc": "3D 부품·어셈블리 모델링, 2D 도면(투상도·치수), CAM, 구조·열·유동 해석",
    "descEn": "3D parts & assemblies, 2D drawings (views · dimensions), CAM, structural / thermal / flow analysis"
@@ -47,7 +47,7 @@
    "title": "K군의 로봇 시뮬레이터",
    "en": "K's Robot Simulator",
    "ver": "Ver0.92",
-   "kb": 1610,
+   "kb": 1670,
    "icon": "🦾",
    "desc": "UR·뉴로메카 Indy 협동로봇 가상 티칭, URScript, 클램프·지그 신호, 손목 카메라",
    "descEn": "Virtual teaching for UR & Neuromeka Indy cobots, URScript, clamp / fixture signals, wrist camera"

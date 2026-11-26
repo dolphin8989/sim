@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>K군의 통합 시뮬레이터 Ver1.27</title>
+<title>K군의 통합 시뮬레이터 Ver1.28</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
@@ -5624,7 +5624,7 @@ return Blockly.Msg;
   <div class="brand">
     <div class="brand-mark">U4</div>
     <div class="brand-text">
-      <b>K군의 통합 시뮬레이터 Ver1.27</b>
+      <b>K군의 통합 시뮬레이터 Ver1.28</b>
       <span>임베디드(Ver1.44) + PLC(Ver1.25) · 2단계 연동(릴레이 인터페이스)</span>
     </div>
   </div>
@@ -7171,7 +7171,7 @@ const STRINGS = {
   "board.esp32_8a": { ko: "ESP32 + 8인치 터치 디스플레이 (800x480)", en: "ESP32 + 8\" Touch Display (800x480)" },
   "board.esp32_8b": { ko: "ESP32 + 8인치 터치 디스플레이 (1024x600)", en: "ESP32 + 8\" Touch Display (1024x600)" },
   "brand.subtitle": { ko: "Arduino GCC Toolchain &amp; Embedded Engine", en: "Arduino GCC Toolchain &amp; Embedded Engine" },
-  "brand.title": { ko: "K군의 통합 시뮬레이터 Ver1.27", en: "K's Integrated Simulator Ver1.27" },
+  "brand.title": { ko: "K군의 통합 시뮬레이터 Ver1.28", en: "K's Integrated Simulator Ver1.28" },
   "comp.ap.power": { ko: "전원", en: "Power" },
   "comp.ap.sigTitle": { ko: "SIG → 보드 디지털 핀 (수신 신호)", en: "SIG → board digital pin (received signal)" },
   "comp.ap.title": { ko: "무선 AP<br>Signal Gen", en: "Wireless AP<br>Signal Gen" },
@@ -8123,7 +8123,7 @@ const STRINGS = {
   "sim.stoppedTag": { ko: "시뮬레이션 중지됨", en: "Simulation stopped" },
   "status.powerOff": { ko: "전원 꺼짐", en: "Power off" },
   "status.signalOn": { ko: "신호 송출 중", en: "Transmitting" },
-  "title.page": { ko: "K군의 통합 시뮬레이터 Ver1.27", en: "K's Integrated Simulator Ver1.27" },
+  "title.page": { ko: "K군의 통합 시뮬레이터 Ver1.28", en: "K's Integrated Simulator Ver1.28" },
   "toolbar.bom": { ko: "BOM List", en: "BOM List" },
   "toolbar.schematic": { ko: "📐 회로도 그리기", en: "📐 Draw Schematic" },
   "toolbar.openPdf": { ko: "📑 도면 PDF 보기", en: "📑 View Diagram PDF" },
@@ -10178,12 +10178,14 @@ function deployToMCU(board, rawCode) {
           const mcu = mcuVM['${board}'];
           if (mcu._i2cTxAddr === null || mcu._i2cTxAddr === undefined) return 4;
           const ok = __i2cTransfer('${board}', mcu._i2cTxAddr, mcu._i2cTxBuf || []);
+          __i2cWaveTx('${board}', mcu._i2cTxAddr, (mcu._i2cTxBuf || []).slice(), { noLog: ok });
           mcu._i2cTxAddr = null;
           mcu._i2cTxBuf = [];
           return ok ? 0 : 2;
         },
         requestFrom: function(addr, qty){
           const bytes = __i2cRequestFrom('${board}', addr, qty);
+          __i2cWaveTx('${board}', addr, bytes.length ? bytes : new Array(Math.max(1, qty | 0)).fill(0xFF), { read: true, noLog: bytes.length > 0 });
           i2cRxBuffer['${board}'] = (i2cRxBuffer['${board}'] || []).concat(bytes);
           return bytes.length;
         },
@@ -10503,7 +10505,7 @@ function deployToMCU(board, rawCode) {
           const st = mcuVM['${board}'];
           st.oledCursor = { line: Math.min(3, st.oledCursor.line + 1), col: 0 };
         }
-        display() {}
+        display() { __i2cOledWave('${board}'); }
       }
       // I2C 캐릭터 LCD(PCF8574 백팩이 달린 모듈) 에뮬레이션 — 실제로는 SDA/SCL 2선으로 통신하는
       // 완전히 다른 배선이지만, 화면에 보여줄 결과는 병렬 LiquidCrystal과 같으므로(같은
@@ -10514,10 +10516,24 @@ function deployToMCU(board, rawCode) {
         constructor(addr, cols, rows) {
           super();
           this._cols = cols || 16; this._rows = rows || 2;
+          this._addr = (typeof addr === 'number') ? addr : 0x27; this._bl = 1;
         }
+        // [Ver1.45] 화면 버퍼는 그대로 쓰고, 같은 동작을 PCF8574 I2C 바이트로도 보내 SDA/SCL 파형을 만듭니다.
+        _cmd(v) { __i2cLcdByte('${board}', this._addr, v, 0, this._bl); }
+        begin(cols, rows) { super.begin(cols || this._cols, rows || this._rows); __i2cLcdInit('${board}', this._addr, this._bl); }
         init() { this.begin(this._cols, this._rows); }
-        backlight() {}
-        noBacklight() {}
+        clear() { super.clear(); this._cmd(0x01); }
+        home() { super.home(); this._cmd(0x02); }
+        setCursor(col, row) { super.setCursor(col, row); this._cmd(0x80 | (((col | 0) + [0x00, 0x40, 0x14, 0x54][(row | 0) & 3]) & 0x7F)); }
+        print(text, opt) {
+          const s = __fmtPrint(text, opt);
+          super.print(text, opt);
+          for (const ch of String(s)) __i2cLcdByte('${board}', this._addr, ch.charCodeAt(0) & 0xFF, 1, this._bl);
+        }
+        command(v) { this._cmd(v & 0xFF); }
+        backlight() { this._bl = 1; __i2cWaveTx('${board}', this._addr, [0x08]); }
+        noBacklight() { this._bl = 0; __i2cWaveTx('${board}', this._addr, [0x00]); }
+        setBacklight(v) { if (v) this.backlight(); else this.noBacklight(); }
       }
       // U8g2lib — 컨트롤러/해상도별로 클래스 이름이 전부 다르지만(U8G2_SSD1306_128X64_...처럼
       // 수십 가지), 위 트랜스파일러 단계에서 "U8G2_"로 시작하는 타입은 전부 이 클래스 하나로
@@ -11486,6 +11502,7 @@ function togglePaletteGroup(headerEl){
 // 지금까지 이 시뮬레이터와 대화하며 추가된 버전별 변경사항을 정리해 한눈에 볼 수 있게 합니다.
 // 새 버전이 나올 때마다 이 배열 맨 앞에 항목을 추가해주면 됩니다.
 const RELEASE_NOTES = [
+  { ver: '통합 Ver1.28 (임베디드 Ver1.45 반영)', ko: ['📈 오실로스코프로 I2C SDA · SCL 실제 파형 보기 — I2C LCD(LiquidCrystal_I2C) · OLED · Wire 통신 때 100 kHz 비트(START · 주소+R/W · ACK · 데이터 · STOP)가 SDA/SCL 에 그려짐', 'I2C LCD 는 PCF8574 백팩처럼 4비트 두 번 · EN 펄스로 전송, 디코드 줄에 CMD/DATA 표시', '트리거: SDA/SCL 같은 디지털 엣지 기록에서 바로 정지(엣지를 화면 왼쪽 1칸 지점에)'], en: ['Real I2C SDA/SCL waveforms on the oscilloscope; edge trigger on logged digital edges'] },
   { ver: 'Ver1.44', ko: ['🌈 네오픽셀 WS2812B 부품(표시 장치 그룹 맨 위) — 스트립 8 · 링 12 · 16 · 24 · 스트립 30 · 매트릭스 8×8, 5V · GND · DIN(직렬 저항을 거쳐도 인식), 예상 전류 표시와 보드 5V 한계 경고, 전원이 안 이어지면 꺼짐', 'Adafruit_NeoPixel 라이브러리 — begin · show · clear · setPixelColor · getPixelColor · fill · setBrightness · numPixels · Color · ColorHSV · gamma32 · gamma8 · sine8 · rainbow, Adafruit_NeoPixel::Color(…) 정적 호출, NEO_GRB · NEO_KHZ800 등 상수 (R3 · R4 · Mega · ESP32)', 'begin() 때 LED 개수(8 · 12 · 16 · 24 · 30 · 64)에 맞춰 부품 모양 자동 선택'], en: ['NeoPixel WS2812B part (strip / ring / 8x8) and Adafruit_NeoPixel library'] },
   { ver: 'Ver1.43', ko: ['🎹 R4 진짜 아날로그 출력 — analogWriteResolution(12) + analogWrite(A0, 0~4095) 이 A0 에 계단 없는 직류 전압(DAC)으로, 다른 핀은 해상도에 맞춰 PWM 듀티 환산(255 넘는 값이 100 % 로 잘리던 문제)', 'R4 analogWave 라이브러리(sine · square · saw · freq · amplitude · offset · start · stop) — A0 에 실제 파형, 오실로스코프에 매끈한 곡선, A0 가 스피커 · 수동 부저 · LM386 IN 에 이어져 있으면 그 파형 소리', '오실로스코프: TIME/DIV 5 ms 이하에서 PWM 을 실제 주파수(약 490 Hz) 펄스로 — R3 PWM 과 R4 DAC 를 나란히 비교', '⌨🖱 USB HID: Keyboard · Mouse 를 쓰면 🖥️ 가상 PC 창이 열려 방향키 · Space · Ctrl+Z · 마우스 커서 · 클릭으로 별 모으기 게임과 메모장을 조작', '📱 가상 휴대폰: <meta http-equiv=refresh> 페이지를 그 초마다 다시 불러옴(실시간 계기판), 보드 웹 페이지의 한글이 깨지던 문제(UTF-8 로 전송)', 'LM386 앰프 입력 Vpp 가 analogWave 파형을 읽음'], en: ['R4 DAC on A0 (12-bit), analogWave library with sound and scope, real-frequency PWM on fast scope, USB HID virtual PC, phone page auto-refresh and UTF-8'] },
   { ver: 'Ver1.42', ko: ['ⓒ 출판 · 배포 대비 상표 정리 — 프로그램 이름을 「K군의 임베디드 시뮬레이터」로 바꿈(앱 이름에 Arduino 상표를 쓰지 않음)', '보드 그림의 ARDUINO · ESPRESSIF 상표 글자를 K-SIM 으로, 칩 설명 끝에 COMPATIBLE(호환) 표기 — 실물 로고 없는 교육용 호환 그림', '제목 옆 ⓘ 단추: 저작권 · 상표 귀속 · 무관 고지 · 오픈소스(Blockly Apache-2.0 · 글꼴 OFL) 라이선스'], en: ['Renamed to K Embedded Simulator; trademark words removed from board drawings; ⓘ copyright / trademark / open-source notice'] },
@@ -17730,7 +17747,7 @@ const COMP_HELP_BLURB = {
   selectorswitch: { ko: '수동/정지/자동 3단 드롭다운입니다 — "수동"을 고르면 COM이 MAN과, "자동"을 고르면 COM이 AUTO와 도통합니다. "정지"에서는 COM이 어디와도 연결되지 않습니다. 자동화 회로에서 자동(센서·타이머) 제어와 수동(푸시버튼) 제어를 전환하는 데 씁니다.', en: 'A 3-position Manual/Off/Auto dropdown — pick "Manual" to connect COM to MAN, or "Auto" to connect COM to AUTO. In "Off", COM connects to neither. Use it to switch a circuit between automatic control (sensors/timers) and manual control (push buttons).' },
   battselswitch: { ko: '배터리1/OFF/배터리2 3단 드롭다운입니다 — 전기적으로는 셀렉터 스위치와 완전히 같습니다("배터리1"을 고르면 COM이 BAT1과, "배터리2"를 고르면 COM이 BAT2와 도통, OFF에서는 어디와도 연결되지 않음). 두 배터리 팩 중 하나만 골라 부하(컨버터 등)에 공급하고, 나머지 하나는 대기/충전 상태로 남겨두는 회로에 씁니다 — 두 배터리를 동시에 연결하는 위험한 병렬 단락을 원천적으로 막아줍니다.', en: 'A 3-position Battery1/Off/Battery2 dropdown — electrically identical to the selector switch ("Battery1" connects COM to BAT1, "Battery2" connects COM to BAT2, "Off" connects to neither). Use it to power a load (converter, etc.) from exactly one of two battery packs at a time, leaving the other idle/charging — this rules out ever paralleling both batteries into a dangerous short.' },
   ledlantern: { ko: '실제 다이오드(A/K) 물리 모델이 아니라 DC 모터와 똑같은 T1/T2(극성 무관) 단자를 갖는 부하입니다 — 모터 드라이버의 OUT1/OUT2에 물리면 그 PWM 출력(ENA 듀티)이 그대로 밝기가 됩니다(고전류 LED를 모터 드라이버로 밝기 조절하는 실제 기법을 흉내낸 것). IN1은 정방향으로 고정해 두세요 — 역방향(dir=-1)이면 실제 LED처럼 역바이어스로 보고 꺼진 채로 처리합니다.', en: 'Not a real diode (A/K) model — it has the same polarity-agnostic T1/T2 terminals as a DC motor, so wiring it to a motor driver\'s OUT1/OUT2 makes that PWM output (ENA duty) directly control its brightness (mimicking the real trick of dimming a high-current LED through a motor driver). Keep IN1 fixed forward — in reverse (dir=-1) it\'s treated as reverse-biased and stays off, like a real LED.' },
-  lcdi2c: { ko: 'VCC/GND로 전원을 넣고 SDA/SCL을 보드의 I2C 핀(대개 A4/A5)에 연결하면, LiquidCrystal_I2C 라이브러리로 쓴 코드가 그대로 화면에 표시됩니다 — 기존 4비트 병렬 LCD와 같은 텍스트 버퍼를 공유하는 단순화 모델이라 실제 I2C 주소·PCF8574 레지스터 통신 자체를 검증하지는 않습니다.', en: 'Power via VCC/GND, wire SDA/SCL to the board\'s I2C pins (usually A4/A5) — code written with the LiquidCrystal_I2C library displays normally. This is a simplified model sharing the same text buffer as the parallel 4-bit LCD, so it does not actually verify the I2C address or PCF8574 register traffic.' },
+  lcdi2c: { ko: 'VCC/GND로 전원을 넣고 SDA/SCL을 보드의 I2C 핀(대개 A4/A5)에 연결하면, LiquidCrystal_I2C 라이브러리로 쓴 코드가 그대로 화면에 표시됩니다 — 기존 4비트 병렬 LCD와 같은 텍스트 버퍼를 공유하는 단순화 모델이고, 보내는 내용은 PCF8574 4비트 방식 I2C 바이트로 SDA/SCL 에 실제 파형(100 kHz)으로 나타나 오실로스코프로 볼 수 있습니다(주소 일치 여부까지 검증하지는 않습니다).', en: 'Power via VCC/GND, wire SDA/SCL to the board\'s I2C pins (usually A4/A5) — code written with the LiquidCrystal_I2C library displays normally. This is a simplified model sharing the same text buffer as the parallel 4-bit LCD, so it does not actually verify the I2C address or PCF8574 register traffic.' },
   flickerrelay: { ko: 'A1-A2에 AC220V를 걸면 코일이 여자되고, 여자되어 있는 동안 설정한 주기(0.5/1/2초)로 COM-NO 접점이 계속 켜짐/꺼짐을 반복합니다 — 코일이 꺼지면 즉시 멈춥니다. 표시등을 깜빡이게 하는 점멸 경보 회로 등에 씁니다.', en: 'Apply AC220V across A1-A2 to energize the coil; while energized, the COM-NO contact keeps toggling on/off at the chosen period (0.5/1/2s), stopping the instant the coil de-energizes. Use it to blink an indicator lamp for a flashing alarm circuit.' },
   terminalblock: { ko: '배선을 분기·중계하는 순수 접속용 부품입니다. 각 단자의 위쪽(T)과 아래쪽(B)은 항상(코일·스위치 상태와 무관하게) 내부에서 도통되어 있습니다 — 여러 선을 한 단자에 몰아넣지 않고 깔끔하게 나눠 연결할 때 씁니다. 드롭다운으로 단자 수(4/6/8/12)를 늘리거나 줄일 수 있습니다.', en: 'A pure connection/splicing part for branching wires. Each terminal\'s top (T) and bottom (B) are always bridged internally, regardless of any coil or switch state — use it to fan wiring out cleanly instead of stacking many wires on one point. The terminal count (4/6/8/12) can be resized from its dropdown.' },
 };
@@ -19179,6 +19196,73 @@ function i2cBusPeers(boardKey){
 // fromBoardKey가 endTransmission()으로 주소 toAddr에 bytes를 보낼 때 호출됩니다. 같은 버스에
 // (SDA로) 연결되어 있고 스스로 그 주소로 Wire.begin(addr)을 해 둔 보드가 있으면 그 보드의
 // 수신 버퍼(i2cRxBuffer)에 그대로 쌓아 줍니다(실제 슬레이브의 onReceive 콜백을 대신하는 단순화).
+// [Ver1.45] I2C 실제 비트 파형 — LiquidCrystal_I2C · OLED · Wire 통신이 일어나면 보드의 SDA/SCL 핀
+// edgeLog 에 100 kHz 표준 모드 타이밍(START · 주소+R/W · ACK · 데이터 · ACK … · STOP)으로 엣지를 적어 둡니다.
+// 오실로스코프 정밀 모드(TIME/DIV ≤ 200 ms)가 이 엣지를 그대로 계단파로 그려, 확대하면 클록 9개 묶음과
+// 데이터 비트를 실제처럼 읽을 수 있습니다. 쉬는 동안 두 선은 풀업으로 HIGH 입니다.
+const I2C_WAVE_HALF_MS = 0.005;   // 100 kHz → 비트 하나 10 µs (반주기 5 µs)
+function __i2cHex(v){ return '0x' + (v & 0xFF).toString(16).toUpperCase().padStart(2, '0'); }
+function __i2cWaveTx(board, addr, bytes, opt){
+  try {
+    const mcu = mcuVM[board]; if (!mcu) return;
+    const type = (typeof boardInstances !== 'undefined' && boardInstances[board] && boardInstances[board].type) || String(board).replace(/_\d+$/, '');
+    const pins = I2C_PINS[type]; if (!pins) return;
+    opt = opt || {};
+    const log = mcu.edgeLog || (mcu.edgeLog = {});
+    const sda = log[pins.sda] || (log[pins.sda] = []);
+    const scl = log[pins.scl] || (log[pins.scl] = []);
+    const H = I2C_WAVE_HALF_MS, Q = H / 2;
+    const base = (mcu.loopStartPerf || performance.now()) + (mcu.cycleOffsetNs || 0) / 1e6;
+    const lastOf = (a) => a.length ? a[a.length - 1].t : 0;
+    let t = Math.max(base, lastOf(sda) + H, lastOf(scl) + H);
+    const put = (arr, v) => {
+      const l = arr[arr.length - 1];
+      if (!l){ arr.push({ t: 0, v: 1 }); if (v === 1) return; }
+      else if (l.v === v) return;
+      arr.push({ t, v });
+    };
+    const bit = (b) => { put(sda, b); t += Q; put(scl, 1); t += H; put(scl, 0); t += Q; };
+    put(sda, 1); put(scl, 1); t += H;
+    put(sda, 0); t += H; put(scl, 0); t += Q;                               // START
+    const all = [((addr & 0x7F) << 1) | (opt.read ? 1 : 0)].concat(bytes || []);
+    all.forEach((b, i) => {
+      for (let k = 7; k >= 0; k--) bit((b >> k) & 1);
+      const lastRead = opt.read && i === all.length - 1 && i > 0;
+      bit(opt.nack || lastRead ? 1 : 0);                                     // ACK(0) / NACK(1)
+    });
+    put(sda, 0); t += Q; put(scl, 1); t += H; put(sda, 1); t += H;          // STOP
+    [sda, scl].forEach(a => { if (a.length > 30000) a.splice(0, a.length - 24000); });
+    if (mcu.loopStartPerf) mcu.cycleOffsetNs = Math.max(mcu.cycleOffsetNs || 0, (t - mcu.loopStartPerf) * 1e6);
+    if (!opt.noLog) logBusActivity('i2c', { from: board, addr: __i2cHex(addr), bytes: (bytes || []).map(__i2cHex), dir: opt.read ? 'read' : 'write' });
+  } catch (e) {}
+}
+// PCF8574 백팩 LCD: 바이트 하나 = 4비트 두 번, 4비트 하나마다 expanderWrite(값) → (값|EN) → (값&~EN) 세 번 전송
+// (P0=RS, P1=RW, P2=EN, P3=백라이트, P4~P7=D4~D7 — LiquidCrystal_I2C 라이브러리와 같은 순서)
+function __i2cLcdNibble(board, addr, v){
+  __i2cWaveTx(board, addr, [v], { noLog: true });
+  __i2cWaveTx(board, addr, [v | 0x04], { noLog: true });
+  __i2cWaveTx(board, addr, [v & ~0x04], { noLog: true });
+  const mcu = mcuVM[board]; if (mcu && mcu.loopStartPerf) mcu.cycleOffsetNs += 50000;   // 명령 처리 대기 약 50 µs
+}
+function __i2cLcdByte(board, addr, value, rs, bl){
+  const f = (rs ? 0x01 : 0) | (bl ? 0x08 : 0);
+  const hi = (value & 0xF0) | f, lo = ((value << 4) & 0xF0) | f;
+  __i2cLcdNibble(board, addr, hi);
+  __i2cLcdNibble(board, addr, lo);
+  try { logBusActivity('i2c', { from: board, addr: __i2cHex(addr), bytes: [hi, hi | 4, hi & ~4, lo, lo | 4, lo & ~4].map(__i2cHex), dir: 'write', note: (rs ? 'DATA ' : 'CMD ') + __i2cHex(value) }); } catch (e) {}
+}
+function __i2cLcdInit(board, addr, bl){
+  __i2cWaveTx(board, addr, [bl ? 0x08 : 0x00]);
+  [0x30, 0x30, 0x30, 0x20].forEach(n => __i2cLcdNibble(board, addr, n | (bl ? 0x08 : 0)));
+  [0x28, 0x0C, 0x01, 0x06, 0x02].forEach(c => __i2cLcdByte(board, addr, c, 0, bl));
+}
+// SSD1306 OLED: display() 때 화면 주소 지정 명령과 첫 데이터 묶음(16바이트)만 보내는 짧은 모델
+function __i2cOledWave(board){
+  const mcu = mcuVM[board]; if (!mcu) return;
+  const txt = (mcu.oledLines || []).join('').padEnd(16, ' ').slice(0, 16);
+  __i2cWaveTx(board, 0x3C, [0x00, 0x21, 0x00, 0x7F, 0x22, 0x00, 0x07]);
+  __i2cWaveTx(board, 0x3C, [0x40].concat(Array.from(txt).map(c => c.charCodeAt(0) & 0xFF)));
+}
 function __i2cTransfer(fromBoardKey, toAddr, bytes){
   if (!isSimulating) return false;
   let delivered = false;
@@ -19643,6 +19727,7 @@ function toggleScopeHold(id){
   drawScope(id);
 }
 function toggleScopeTrigger(id){
+  try { delete window.__scopeArmT[id]; } catch (e) {}
   if (armedScopes.has(id)){
     // 트리거 무장 취소 — 화면은 계속 흐르던 대로 유지됩니다(정지/재개 상태는 건드리지 않음).
     armedScopes.delete(id);
@@ -19867,7 +19952,7 @@ function scopeDecodeText(logKind){
   if (!arr.length) return null;
   const e = arr[arr.length - 1];
   if (logKind === 'serial') return `${e.from.toUpperCase()}→${(e.to || '?').toUpperCase()}: "${(e.text || '').replace(/\n/g, '\\n')}"`;
-  if (logKind === 'i2c') return `${e.dir === 'write' ? tr('scope.decodeI2cWrite') : tr('scope.decodeI2cRead')} addr=${e.addr}: [${(e.bytes || []).join(', ')}]`;
+  if (logKind === 'i2c') return `${e.dir === 'write' ? tr('scope.decodeI2cWrite') : tr('scope.decodeI2cRead')} addr=${e.addr}: [${(e.bytes || []).join(', ')}]${e.note ? ' · ' + e.note : ''}`;
   if (logKind === 'can' || logKind === 'canfd') return `id=${e.id} data=[${(e.data || []).join(', ')}]`;
   if (logKind === 'rs485') return `${e.board.toUpperCase()} → ID ${e.id}: ${e.angle}°`;
   if (logKind === 'rs485bus') return `${e.from.toUpperCase()} → ${(e.to || '?').toUpperCase()}: [${(e.bytes || []).join(', ')}]`;
@@ -20946,7 +21031,14 @@ function runTick(){
     });
     if (!held) drawScope(sc.id);
     if (!held) updateScopeDecodeOutput(sc.id);
-    if (armed && triggered){
+    const __et = (armed && !triggered) ? __scopeEdgeTrigger(sc) : null;
+    if (__et){
+      armedScopes.delete(sc.id);
+      heldScopes.set(sc.id, __et);
+      setScopeHoldUI(sc.id, 'held');
+      setScopeTriggerUI(sc.id, 'idle');
+      drawScope(sc.id);
+    } else if (armed && triggered){
       // 트리거 발생 — 방금 캡처한 샘플까지 포함해 그 순간 그대로 정지합니다. 트리거는 다시
       // 무장하기 전까지는 껐다(idle) 표시하고, 정지/재개 버튼은 "정지" 상태로 바뀝니다 —
       // 두 버튼이 서로 다른 것을 나타내는 독립된 상태이므로 둘 다 갱신해야 합니다.
@@ -21047,6 +21139,30 @@ function runTick(){
   });
 }
 
+// [Ver1.45] 트리거 — 프로브가 물린 보드 핀의 edgeLog(I2C SDA/SCL, digitalWrite 등)에 무장 이후 새 엣지가
+// 생기면 그 순간에서 정지합니다. 엣지가 화면 왼쪽 1칸(10 %) 지점에 오도록 맞춰, 그 뒤의 비트 열을 바로 읽을 수 있습니다.
+window.__scopeArmT = window.__scopeArmT || {};
+function __scopeEdgeTrigger(sc){
+  const now = performance.now();
+  const armT = window.__scopeArmT[sc.id];
+  if (armT == null){ window.__scopeArmT[sc.id] = now; return null; }
+  let first = null;
+  ['1', '2', '3', '4'].forEach(n => {
+    if (typeof isScopeChannelOn === 'function' && !isScopeChannelOn(sc.id, +n)) return;
+    const pEl = sc.querySelector(`[data-pin$="_CH${n}"]`); if (!pEl) return;
+    const bp = findBoardPinOnNet(pEl);
+    const edges = (bp && mcuVM[bp.boardKey] && mcuVM[bp.boardKey].edgeLog) ? mcuVM[bp.boardKey].edgeLog[bp.pinId] : null;
+    if (!edges || !edges.length) return;
+    for (let i = edges.length - 1; i >= 0 && edges[i].t > armT; i--){ if (edges[i].t > 0 && (first == null || edges[i].t < first)) first = edges[i].t; }
+  });
+  if (first == null || first > now) return null;
+  const sel = document.getElementById(`${sc.id}_timediv`);
+  const full = (sel ? parseFloat(sel.value) : 50) * SCOPE_HDIV;
+  if (full > SCOPE_FINE_THRESHOLD_MS * SCOPE_HDIV) return null;
+  delete window.__scopeArmT[sc.id];
+  const perfNow = first + full * 0.9;
+  return { perfNow, dateNow: Date.now() + (perfNow - now) };
+}
 const SCOPE_HDIV = 10; // 화면 가로 칸 수 (실제 오실로스코프처럼 TIME/DIV x 10칸 = 전체 화면 시간)
 const SCOPE_VDIV = 8;  // 화면 세로 칸 수
 // TIME/DIV가 이 값(ms) 이하이면 "정밀(fine) 모드"를 시도합니다 — 보간(interpolation)된 폴링
