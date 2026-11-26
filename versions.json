@@ -51,6 +51,16 @@
    "icon": "🦾",
    "desc": "UR·뉴로메카 Indy 협동로봇 가상 티칭, URScript, 클램프·지그 신호, 손목 카메라",
    "descEn": "Virtual teaching for UR & Neuromeka Indy cobots, URScript, clamp / fixture signals, wrist camera"
+  },
+  {
+   "file": "mathS.html",
+   "title": "K군의 수학 시뮬레이터 mathS",
+   "en": "K's Math Simulator mathS",
+   "ver": "Ver1.00",
+   "kb": 526,
+   "icon": "📈",
+   "desc": "분수 · 함수 · 미적분 · 벡터 · 행렬 · 확률 통계 · 신호 · 제어 50개 주제를 공학 예와 함께 직접 움직여 보며 이해",
+   "descEn": "50 topics from fractions to calculus, matrices, statistics, signals and control — learn by moving them, with engineering examples"
   }
  ]
 }
