@@ -9525,7 +9525,7 @@ function deployToMCU(board, rawCode) {
       // (__serialTransmit). available()/read()/readString()은 그렇게 도착한 바이트를
       // serialRxBuffer['${board}']에서 꺼내 씁니다.
       const Serial = {
-        begin: function() {},
+        begin: function(b) { mcuVM['${board}']._baud = Number(b) || 9600; },
         print: function(v, opt) { const s = __fmtPrint(v, opt); logSerial(s, '${board}', false); __serialTransmit('${board}', s); },
         println: function(v, opt) { const s = (v !== undefined) ? __fmtPrint(v, opt) : ''; logSerial(s, '${board}'); __serialTransmit('${board}', s + '\\n'); },
         write: function(v, n) { const s = Array.isArray(v) ? v.slice(0, n === undefined ? v.length : n).map(c => typeof c === 'number' ? String.fromCharCode(c & 0xFF) : String(c)).join('') : (typeof v === 'number') ? String.fromCharCode(v & 0xFF) : (n !== undefined ? String(v).slice(0, n) : String(v)); logSerial(s.split(String.fromCharCode(13)).join(''), '${board}', false); __serialTransmit('${board}', s); return s.length; },
@@ -9577,6 +9577,7 @@ function deployToMCU(board, rawCode) {
           this._key = '${board}:' + this._rxPin;
         }
         begin(baud) {
+          (mcuVM['${board}']._baudPin = mcuVM['${board}']._baudPin || {})[this._txPin] = Number(baud) || 9600;
           pinMode(this._rxPin, INPUT);
           pinMode(this._txPin, OUTPUT);
           softSerialRegistry[this._key] = softSerialRegistry[this._key] || { buffer: [] };
@@ -10332,12 +10333,14 @@ function deployToMCU(board, rawCode) {
           __bumpApi();
           const reading = analogPinReading(boardDomId['${board}'], __analogPinName(this._pin));
           const c = reading ? (Math.max(0, Math.min(1, reading.v)) * 60 - 10) : 24;
+          try { if (window.__waveDht) window.__waveDht('${board}', this._pin, this._lastH != null ? this._lastH : 45, Math.round(c * 10) / 10); } catch (e) {}
           return isFahrenheit ? Math.round((c * 9 / 5 + 32) * 10) / 10 : Math.round(c * 10) / 10;
         }
         readHumidity() {
           __bumpApi();
           const reading = analogPinReading(boardDomId['${board}'], __analogPinName(this._pin));
           const h = reading ? Math.max(0, Math.min(1, reading.v)) * 100 : 45;
+          this._lastH = Math.round(h);
           return Math.round(h * 10) / 10;
         }
       }
@@ -10471,6 +10474,7 @@ function deployToMCU(board, rawCode) {
             }
             if (!onThisBoard) return;
             setRS485ServoAngle(el.id, angle);
+            try { if (window.__waveRs485Servo) window.__waveRs485Servo('${board}', dataPin, Number(id), angle); } catch (e) {}
             logBusActivity('rs485', { board: '${board}', id: Number(id), angle });
           });
         }
@@ -10487,7 +10491,7 @@ function deployToMCU(board, rawCode) {
       // 라이브러리도 "RS485.begin(9600);"처럼 인스턴스를 선언하지 않고 바로 씁니다).
       const RS485 = {
         _txBuf: null,
-        begin: function(baud) { rs485RxQueue['${board}'] = rs485RxQueue['${board}'] || []; return true; },
+        begin: function(baud) { rs485RxQueue['${board}'] = rs485RxQueue['${board}'] || []; mcuVM['${board}']._baud485 = Number(baud) || 9600; return true; },
         end: function() {},
         beginTransmission: function() { this._txBuf = []; },
         write: function(b) {
@@ -10497,6 +10501,8 @@ function deployToMCU(board, rawCode) {
           return 1;
         },
         endTransmission: function() { __rs485BusTransmit('${board}', this._txBuf || []); this._txBuf = null; },
+        print: function(v, opt) { return this.write(__fmtPrint(v, opt)); },
+        println: function(v, opt) { return this.write((v === undefined ? '' : __fmtPrint(v, opt)) + '\\r\\n'); },
         beginReception: function() { rs485RxQueue['${board}'] = rs485RxQueue['${board}'] || []; },
         receive: function() { this.beginReception(); },
         noReceive: function() {},
@@ -11214,7 +11220,7 @@ function togglePaletteGroup(headerEl){
 // 지금까지 이 시뮬레이터와 대화하며 추가된 버전별 변경사항을 정리해 한눈에 볼 수 있게 합니다.
 // 새 버전이 나올 때마다 이 배열 맨 앞에 항목을 추가해주면 됩니다.
 const RELEASE_NOTES = [
-  { ver: 'Ver1.45', ko: ['📈 오실로스코프로 I2C SDA · SCL 실제 파형 보기 — I2C LCD(LiquidCrystal_I2C) · OLED · Wire 통신이 일어날 때 100 kHz 표준 모드 비트(START · 주소+R/W · ACK · 데이터 · STOP)가 SDA/SCL 핀에 그려짐(예전에는 LCD 글자는 나오지만 SDA/SCL 은 평평한 HIGH 만 보였음)', 'I2C LCD 는 실제 PCF8574 백팩처럼 4비트 두 번 · EN 펄스(값 → 값|EN → 값&~EN) 로 전송 — 글자 하나에 I2C 전송 6번, 디코드 줄에 CMD/DATA 바이트 표시', '트리거: SDA/SCL 같은 디지털 엣지 기록에서 바로 정지(엣지가 화면 왼쪽 1칸 지점) — TIME/DIV 20 ~ 50 µs 로 놓고 트리거를 건 뒤 키를 누르면 클록 9개 묶음 · 주소 0x27 · ACK 를 하나하나 읽을 수 있음'], en: ['Oscilloscope now shows real I2C SDA/SCL bit waveforms (100 kHz START/address/ACK/data/STOP) for I2C LCD, OLED and Wire traffic; I2C LCD sends PCF8574 4-bit nibbles with EN pulses'] },
+  { ver: 'Ver1.45', ko: ['📈 오실로스코프로 통신선의 실제 비트 파형 보기 — I2C(LCD · OLED · Wire · BME280 · MPU6050 · RTC, 100 kHz START · 주소 · ACK · STOP) · UART/SCI(Serial · Serial1~3 · ESP32 UART · SoftwareSerial · 블루투스, 8N1 · 설정한 보레이트) · RS-485(DI → A/B 차동 → 상대 RO) · Modbus RTU(요청 · 응답 프레임 + CRC16) · CAN 2.0(500 kbps, 비트 스터핑 · CRC15 · ACK, CANH 3.5 V / CANL 1.5 V) · CAN FD(데이터 구간 2 Mbps) · ESP32 TWAI + SN65HVD230 · SPI(SD 카드 · SPI.transfer: SCK · MOSI · MISO · CS) · 1-Wire(DS18B20) · DHT11/22 단선 신호. 예전에는 대부분 평평한 HIGH 나 흉내 낸 무늬만 보였음', '📡 통신 애니메이션 — 통신이 일어나면 보내는 보드 · 모듈에 「▶ 보냄」, 받는 쪽에 「◀ 받음」 말풍선(프로토콜 · 주소/ID · 데이터)이 뜨고, 그 버스의 전선에 데이터가 흐르는 점선이 프로토콜 색(I2C 주황 · SPI 보라 · CAN 초록 · UART 하늘 · RS-485 청록 · Modbus 주홍)으로 지나감', '트리거: 통신 파형이 있는 채널은 첫 엣지에서 정지(엣지가 화면 왼쪽 1칸 지점) — TIME/DIV 를 비트 길이에 맞추면(I2C 20 µs · CAN 50~100 µs · UART 9600 은 1 ms) 비트를 하나하나 읽을 수 있음', '📖 동작 원리(▶) 창에 통신 규약 설명 추가 — 통신 부품은 부품 원리 애니메이션이 끝나면 이어서 그 부품의 통신 규약을 실제 비트 파형 · 프레임 필드 · 장치 사이 데이터 흐름으로 보여 줌(I2C: I2C LCD · OLED · MPU6050 · 자이로 · 가속도 · BME280 / UART: 블루투스 · 미세먼지 · RS-485 / SPI: SD · CAN 모듈 · MAX7219 / CAN · CAN FD: CAN 모듈 · SN65HVD230 / RS-485 + Modbus RTU: RS-485 모듈 · 버스 서보 / DHT 단선: 온습도 센서)', '🐞 ArduinoRS485 의 RS485.print() · println() 이 없어 실행 오류가 나던 문제 수정'], en: ['Real bit-level waveforms on the oscilloscope for I2C, UART/SCI, RS-485, Modbus RTU, CAN/CAN FD, TWAI, SPI, 1-Wire and DHT; TX/RX bubbles and animated data flow on bus wires; edge trigger for logged waveforms; RS485.print/println fix'] },
   { ver: 'Ver1.44', ko: ['🌈 네오픽셀 WS2812B 부품(표시 장치 그룹 맨 위) — 스트립 8 · 링 12 · 16 · 24 · 스트립 30 · 매트릭스 8×8, 5V · GND · DIN(직렬 저항을 거쳐도 인식), 예상 전류 표시와 보드 5V 한계 경고, 전원이 안 이어지면 꺼짐', 'Adafruit_NeoPixel 라이브러리 — begin · show · clear · setPixelColor · getPixelColor · fill · setBrightness · numPixels · Color · ColorHSV · gamma32 · gamma8 · sine8 · rainbow, Adafruit_NeoPixel::Color(…) 정적 호출, NEO_GRB · NEO_KHZ800 등 상수 (R3 · R4 · Mega · ESP32)', 'begin() 때 LED 개수(8 · 12 · 16 · 24 · 30 · 64)에 맞춰 부품 모양 자동 선택'], en: ['NeoPixel WS2812B part (strip / ring / 8x8) and Adafruit_NeoPixel library'] },
   { ver: 'Ver1.43', ko: ['🎹 R4 진짜 아날로그 출력 — analogWriteResolution(12) + analogWrite(A0, 0~4095) 이 A0 에 계단 없는 직류 전압(DAC)으로, 다른 핀은 해상도에 맞춰 PWM 듀티 환산(255 넘는 값이 100 % 로 잘리던 문제)', 'R4 analogWave 라이브러리(sine · square · saw · freq · amplitude · offset · start · stop) — A0 에 실제 파형, 오실로스코프에 매끈한 곡선, A0 가 스피커 · 수동 부저 · LM386 IN 에 이어져 있으면 그 파형 소리', '오실로스코프: TIME/DIV 5 ms 이하에서 PWM 을 실제 주파수(약 490 Hz) 펄스로 — R3 PWM 과 R4 DAC 를 나란히 비교', '⌨🖱 USB HID: Keyboard · Mouse 를 쓰면 🖥️ 가상 PC 창이 열려 방향키 · Space · Ctrl+Z · 마우스 커서 · 클릭으로 별 모으기 게임과 메모장을 조작', '📱 가상 휴대폰: <meta http-equiv=refresh> 페이지를 그 초마다 다시 불러옴(실시간 계기판), 보드 웹 페이지의 한글이 깨지던 문제(UTF-8 로 전송)', 'LM386 앰프 입력 Vpp 가 analogWave 파형을 읽음'], en: ['R4 DAC on A0 (12-bit), analogWave library with sound and scope, real-frequency PWM on fast scope, USB HID virtual PC, phone page auto-refresh and UTF-8'] },
   { ver: 'Ver1.42', ko: ['ⓒ 출판 · 배포 대비 상표 정리 — 프로그램 이름을 「K군의 임베디드 시뮬레이터」로 바꿈(앱 이름에 Arduino 상표를 쓰지 않음)', '보드 그림의 ARDUINO · ESPRESSIF 상표 글자를 K-SIM 으로, 칩 설명 끝에 COMPATIBLE(호환) 표기 — 실물 로고 없는 교육용 호환 그림', '제목 옆 ⓘ 단추: 저작권 · 상표 귀속 · 무관 고지 · 오픈소스(Blockly Apache-2.0 · 글꼴 OFL) 라이선스'], en: ['Renamed to K Embedded Simulator; trademark words removed from board drawings; ⓘ copyright / trademark / open-source notice'] },
@@ -18909,12 +18915,14 @@ function __i2cWaveTx(board, addr, bytes, opt){
     const sda = log[pins.sda] || (log[pins.sda] = []);
     const scl = log[pins.scl] || (log[pins.scl] = []);
     const H = I2C_WAVE_HALF_MS, Q = H / 2;
+    const HIV = /^esp32/.test(type) ? 0.66 : 1;
     const base = (mcu.loopStartPerf || performance.now()) + (mcu.cycleOffsetNs || 0) / 1e6;
     const lastOf = (a) => a.length ? a[a.length - 1].t : 0;
     let t = Math.max(base, lastOf(sda) + H, lastOf(scl) + H);
     const put = (arr, v) => {
       const l = arr[arr.length - 1];
-      if (!l){ arr.push({ t: 0, v: 1 }); if (v === 1) return; }
+      v = v ? HIV : 0;
+      if (!l){ arr.push({ t: 0, v: HIV }); if (v === HIV) return; }
       else if (l.v === v) return;
       arr.push({ t, v });
     };
@@ -18931,6 +18939,7 @@ function __i2cWaveTx(board, addr, bytes, opt){
     [sda, scl].forEach(a => { if (a.length > 30000) a.splice(0, a.length - 24000); });
     if (mcu.loopStartPerf) mcu.cycleOffsetNs = Math.max(mcu.cycleOffsetNs || 0, (t - mcu.loopStartPerf) * 1e6);
     if (!opt.noLog) logBusActivity('i2c', { from: board, addr: __i2cHex(addr), bytes: (bytes || []).map(__i2cHex), dir: opt.read ? 'read' : 'write' });
+    if (!opt.noLog && !opt.noAnim && window.__i2cAnim) window.__i2cAnim(board, addr, `${__i2cHex(addr)} ${opt.read ? 'R' : 'W'} [${(bytes || []).slice(0, 6).map(__i2cHex).join(' ')}${(bytes || []).length > 6 ? ' …' : ''}]`);
   } catch (e) {}
 }
 // PCF8574 백팩 LCD: 바이트 하나 = 4비트 두 번, 4비트 하나마다 expanderWrite(값) → (값|EN) → (값&~EN) 세 번 전송
@@ -18947,6 +18956,7 @@ function __i2cLcdByte(board, addr, value, rs, bl){
   __i2cLcdNibble(board, addr, hi);
   __i2cLcdNibble(board, addr, lo);
   try { logBusActivity('i2c', { from: board, addr: __i2cHex(addr), bytes: [hi, hi | 4, hi & ~4, lo, lo | 4, lo & ~4].map(__i2cHex), dir: 'write', note: (rs ? 'DATA ' : 'CMD ') + __i2cHex(value) }); } catch (e) {}
+  try { if (window.__i2cAnim) window.__i2cAnim(board, addr, `${__i2cHex(addr)} LCD ${rs ? 'DATA \'' + (value >= 32 && value < 127 ? String.fromCharCode(value) : '·') + '\'' : 'CMD ' + __i2cHex(value)}`); } catch (e) {}
 }
 function __i2cLcdInit(board, addr, bl){
   __i2cWaveTx(board, addr, [bl ? 0x08 : 0x00]);
@@ -20728,14 +20738,14 @@ function runTick(){
     });
     if (!held) drawScope(sc.id);
     if (!held) updateScopeDecodeOutput(sc.id);
-    const __et = (armed && !triggered) ? __scopeEdgeTrigger(sc) : null;
-    if (__et){
+    const __et = armed ? __scopeEdgeTrigger(sc) : null;
+    if (__et && __et !== 'wait'){
       armedScopes.delete(sc.id);
       heldScopes.set(sc.id, __et);
       setScopeHoldUI(sc.id, 'held');
       setScopeTriggerUI(sc.id, 'idle');
       drawScope(sc.id);
-    } else if (armed && triggered){
+    } else if (armed && triggered && __et !== 'wait'){
       // 트리거 발생 — 방금 캡처한 샘플까지 포함해 그 순간 그대로 정지합니다. 트리거는 다시
       // 무장하기 전까지는 껐다(idle) 표시하고, 정지/재개 버튼은 "정지" 상태로 바뀝니다 —
       // 두 버튼이 서로 다른 것을 나타내는 독립된 상태이므로 둘 다 갱신해야 합니다.
@@ -20839,23 +20849,40 @@ function runTick(){
 // [Ver1.45] 트리거 — 프로브가 물린 보드 핀의 edgeLog(I2C SDA/SCL, digitalWrite 등)에 무장 이후 새 엣지가
 // 생기면 그 순간에서 정지합니다. 엣지가 화면 왼쪽 1칸(10 %) 지점에 오도록 맞춰, 그 뒤의 비트 열을 바로 읽을 수 있습니다.
 window.__scopeArmT = window.__scopeArmT || {};
+// 프로브 net 안에서 파형 기록(보드 핀 edgeLog · 부품 핀 __compEdges)이 있는 선 중 가장 최근 것을 고릅니다.
+function __probeEdgesFor(pEl){
+  if (!pEl) return null;
+  let best = null, bestT = -Infinity;
+  try {
+    for (const el of netOf(pEl)){
+      const pid = el.dataset && el.dataset.pin; if (!pid || el === pEl) continue;
+      const bd = el.closest && el.closest('.board');
+      let arr = null;
+      if (bd && bd.dataset.board){ const m = mcuVM[bd.dataset.board]; arr = (m && m.edgeLog) ? m.edgeLog[pid] : null; }
+      else if (window.__compEdges) arr = window.__compEdges[pid];
+      if (arr && arr.length){ const lt = arr[arr.length - 1].t; if (lt > bestT){ bestT = lt; best = arr; } }
+    }
+  } catch (e) {}
+  return best;
+}
 function __scopeEdgeTrigger(sc){
   const now = performance.now();
-  const armT = window.__scopeArmT[sc.id];
-  if (armT == null){ window.__scopeArmT[sc.id] = now; return null; }
-  let first = null;
-  ['1', '2', '3', '4'].forEach(n => {
-    if (typeof isScopeChannelOn === 'function' && !isScopeChannelOn(sc.id, +n)) return;
-    const pEl = sc.querySelector(`[data-pin$="_CH${n}"]`); if (!pEl) return;
-    const bp = findBoardPinOnNet(pEl);
-    const edges = (bp && mcuVM[bp.boardKey] && mcuVM[bp.boardKey].edgeLog) ? mcuVM[bp.boardKey].edgeLog[bp.pinId] : null;
-    if (!edges || !edges.length) return;
-    for (let i = edges.length - 1; i >= 0 && edges[i].t > armT; i--){ if (edges[i].t > 0 && (first == null || edges[i].t < first)) first = edges[i].t; }
-  });
-  if (first == null || first > now) return null;
   const sel = document.getElementById(`${sc.id}_timediv`);
   const full = (sel ? parseFloat(sel.value) : 50) * SCOPE_HDIV;
   if (full > SCOPE_FINE_THRESHOLD_MS * SCOPE_HDIV) return null;
+  let armT = window.__scopeArmT[sc.id];
+  if (armT == null) armT = window.__scopeArmT[sc.id] = now;
+  let first = null, has = false;
+  ['1', '2', '3', '4'].forEach(n => {
+    if (typeof isScopeChannelOn === 'function' && !isScopeChannelOn(sc.id, +n)) return;
+    const pEl = sc.querySelector(`[data-pin$="_CH${n}"]`); if (!pEl) return;
+    const edges = __probeEdgesFor(pEl);
+    if (!edges || !edges.length) return;
+    has = true;
+    for (let i = edges.length - 1; i >= 0 && edges[i].t > armT; i--){ if (edges[i].t > 0 && (first == null || edges[i].t < first)) first = edges[i].t; }
+  });
+  if (!has) return null;                       // 파형 기록이 없는 채널 — 예전 방식(디지털 값 변화) 트리거
+  if (first == null || first > now) return 'wait';
   delete window.__scopeArmT[sc.id];
   const perfNow = first + full * 0.9;
   return { perfNow, dateNow: Date.now() + (perfNow - now) };
@@ -20983,8 +21010,7 @@ function drawScope(id){
     const key = `${id}_${ch}`;
     if (isFine){
       const pEl = document.querySelector(`#${id} [data-pin$="_${ch}"]`);
-      const bp = findBoardPinOnNet(pEl);
-      const edges = (bp && mcuVM[bp.boardKey]) ? mcuVM[bp.boardKey].edgeLog[bp.pinId] : null;
+      const edges = __probeEdgesFor(pEl);
       // [개선] PWM 듀티/아날로그/AC/DAC처럼 edgeLog가 없는(또는 아직 한 번도 안 바뀐) 신호는
       // 지금까지처럼 coarse 폴링 버퍼로 그리고, 실제 디지털 HIGH/LOW 엣지 기록이 있는 신호만
       // 정밀(계단파) 모드로 그립니다 — TIME/DIV를 200ms까지 넓혀도 디지털 on/off는 또렷하게,
@@ -29824,7 +29850,7 @@ XGB / XG5000 (LS ELECTRIC), MELSEC / GX Works (Mitsubishi Electric), SIMATIC / S
       const tx = (s) => { if (pins) window.__xuartTx(board, pins[0], s); else __serialTransmit(board, s); };
       return {
         _board: board, _n: n, _pins: pins,
-        begin(baud, cfg, rx, tx){ if (/^esp32/.test(board) && n > 0 && rx != null && rx >= 0){ const R = 'GPIO' + rx, T = tx != null && tx >= 0 ? 'GPIO' + tx : pins[0]; ESPRX[board] = ESPRX[board] || {}; Object.keys(ESPRX[board]).forEach(k => { if (ESPRX[board][k] === key) delete ESPRX[board][k]; }); ESPRX[board][R] = key; pins = [T, R]; this._pins = pins; } }, end(){}, flush(){},
+        begin(baud, cfg, rx, tx){ if (/^esp32/.test(board) && n > 0 && rx != null && rx >= 0){ const R = 'GPIO' + rx, T = tx != null && tx >= 0 ? 'GPIO' + tx : pins[0]; ESPRX[board] = ESPRX[board] || {}; Object.keys(ESPRX[board]).forEach(k => { if (ESPRX[board][k] === key) delete ESPRX[board][k]; }); ESPRX[board][R] = key; pins = [T, R]; this._pins = pins; } try { const __bm = mcuVM[board]; (__bm._baudPin = __bm._baudPin || {})[(this._pins || pins || ['D1'])[0]] = Number(baud) || 9600; if (n === 0) __bm._baud = Number(baud) || 9600; } catch (e) {} }, end(){}, flush(){},
         print(v, opt){ tx(fmtPrint(v, opt)); }, println(v, opt){ tx((v !== undefined ? fmtPrint(v, opt) : '') + '\r\n'); },
         write(v){ tx(typeof v === 'number' ? String.fromCharCode(v & 0xFF) : String(v)); return 1; },
         printf(){ tx(sprintf.apply(null, arguments)); },
@@ -35838,6 +35864,7 @@ void loop() {
     const h = P(me, 'CANH'); if (!h) return false; const bus = new Set(netOf(h)); let sent = 0; const S = BK.canx = BK.canx || {};
     const bump = (id, k) => { S[id] = S[id] || { tx: 0, rx: 0, t: 0 }; S[id][k]++; S[id].t = now(); };
     bump(me.id, 'tx');
+    try { if (window.__waveTwai) window.__waveTwai(board, me, f); } catch (e) {}
     Object.keys(BK.cannode).forEach(b => { if (b === board || !mcuVM[b]) return; const x = xcvrOf(b); if (!x) return; const xh = P(x, 'CANH'); if (!xh || !bus.has(xh)) return; (BK.canq[b] = BK.canq[b] || []).push({ id: f.id, len: f.len, data: f.data.slice() }); if (BK.canq[b].length > 64) BK.canq[b].shift(); bump(x.id, 'rx'); sent++; });
     return true;
   }
@@ -38177,6 +38204,724 @@ window.__principle = { open, attach, kinds: K, kindOf, MAP };
     }
     const panel = document.getElementById('examplePanel'); if (panel) panel.hidden = true;
   };
+})();
+
+</script>
+<script>
+/* =====================================================================
+   [Ver1.45] 통신 파형 엔진 + 부품 통신 애니메이션
+   · 실제 비트 파형을 보드 핀(mcuVM[board].edgeLog)과 부품 핀(window.__compEdges)에 기록 →
+     오실로스코프 정밀 모드(TIME/DIV ≤ 200 ms)에서 계단파로 보이고, 트리거도 걸립니다.
+       UART(SCI: Serial · Serial1~3 · ESP32 UART · SoftwareSerial · 블루투스 HC-05) 8N1, LSB 먼저
+       RS-485(MAX485: DI → A/B 차동 → 상대 RO) · Modbus RTU(요청 + 응답 프레임, CRC16)
+       CAN 2.0A/B(500 kbps, 비트 스터핑 · CRC15 · ACK) · CAN FD(중재 500 kbps / 데이터 2 Mbps)
+       ESP32 TWAI + SN65HVD230(CTX · CANH · CANL · CRX) · MCP2515 모듈 CS(SPI 선택)
+       SPI(SD 카드 · SPI.transfer: SCK · MOSI · MISO · CS, 모드 0)
+       I2C 센서(BME280 · MPU6050 · RTC) 읽기 · 1-Wire(DS18B20) · DHT11/22 단선 프로토콜
+   · 통신이 일어나면 부품 위에 「▶ 보냄 / ◀ 받음 + 프로토콜 + 내용」 말풍선이 뜨고,
+     그 버스의 전선에 데이터가 흐르는 점선 애니메이션이 프로토콜 색으로 지나갑니다.
+   ===================================================================== */
+(function(){
+  'use strict';
+  if (typeof mcuVM === 'undefined' || typeof netOf !== 'function') return;
+  const CE = window.__compEdges = window.__compEdges || {};
+  const typeOf = (b) => String((typeof boardInstances !== 'undefined' && boardInstances[b] && boardInstances[b].type) || b || '').replace(/_\d+$/, '');
+  const isEsp = (b) => /^esp32/.test(typeOf(b));
+  const isMega = (b) => /^mega/.test(typeOf(b));
+  const HI = (b) => isEsp(b) ? 0.66 : 1;
+  let depth = 0;
+  const L = (ko, en) => { try { return (typeof currentLang !== 'undefined' && currentLang === 'en') ? en : ko; } catch (e) { return ko; } };
+
+  /* ---------------- 공통: 레인(선) · 시각 · 기록 ---------------- */
+  function boardEl(b){ try { return document.getElementById(boardDomId[b] || ''); } catch (e) { return null; } }
+  function boardPin(b, name){ const be = boardEl(b); return be ? be.querySelector(`[data-pin="${name}"]`) : null; }
+  function pinName(b, p){ if (typeof p === 'number' || /^\d+$/.test(String(p))) return (isEsp(b) ? 'GPIO' : 'D') + Number(p); return String(p); }
+  function compPin(comp, sfx){ return comp ? comp.querySelector(`[data-pin$="_${sfx}"]`) : null; }
+  function arrFor(el){
+    const pid = el && el.dataset && el.dataset.pin; if (!pid) return null;
+    const bd = el.closest && el.closest('.board');
+    if (bd && bd.dataset.board){ const m = mcuVM[bd.dataset.board]; if (!m) return null; const lg = m.edgeLog || (m.edgeLog = {}); return lg[pid] || (lg[pid] = []); }
+    return CE[pid] || (CE[pid] = []);
+  }
+  // lane: { el, arr, v1, v0, idle } — v 는 5 V 기준 정규화 값(오실로스코프가 ×5 해서 그림)
+  function lane(el, v1, v0, idle){ const arr = arrFor(el); return arr ? { el, arr, v1, v0, idle: idle == null ? 1 : idle } : null; }
+  function baseT(board){ const m = mcuVM[board] || {}; return (m.loopStartPerf || performance.now()) + (m.cycleOffsetNs || 0) / 1e6; }
+  function startT(board, lanes, gap){ let t = baseT(board); lanes.forEach(l => { const a = l.arr; if (a.length) t = Math.max(t, a[a.length - 1].t + (gap || 0)); }); return t; }
+  function put(l, t, lvl){
+    const a = l.arr;
+    if (!a.length) a.push({ t: 0, v: l.idle ? l.v1 : l.v0 });
+    const v = lvl ? l.v1 : l.v0, lp = a[a.length - 1];
+    if (lp.v === v) return;
+    a.push({ t: Math.max(t, lp.t), v });
+  }
+  // segs: [[level, ms], ...] — 모든 레인에 같은 논리 레벨을 같은 시각에 씁니다.
+  function play(lanes, t, segs){
+    for (const [lvl, d] of segs){ for (const l of lanes) put(l, t, lvl); t += d; }
+    for (const l of lanes) if (l.arr.length > 30000) l.arr.splice(0, l.arr.length - 24000);
+    return t;
+  }
+  const backlog = (t) => t - performance.now() > 400;   // 너무 밀렸으면(버퍼 넘침) 파형은 건너뜀 — 통신 자체는 그대로
+  const uniq = (arr) => arr.filter(Boolean).filter((l, i, a) => a.findIndex(x => x.arr === l.arr) === i);
+  const bytesOf = (s) => { if (typeof s !== 'string') return []; try { return Array.from(new TextEncoder().encode(s)); } catch (e) { return Array.from(s).map(c => c.charCodeAt(0) & 0xFF); } };
+  const hex = (v) => (v & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+  const show = (bytes, max) => { const s = bytes.slice(0, max || 12).map(b => (b >= 32 && b < 127) ? String.fromCharCode(b) : (b === 10 ? '↵' : (b === 13 ? '' : '·'))).join(''); return s + (bytes.length > (max || 12) ? '…' : ''); };
+
+  /* ---------------- 통신 애니메이션 (부품 말풍선 + 전선 흐름) ---------------- */
+  const COL = { i2c: '#ffb454', spi: '#c792ea', can: '#57e08c', canfd: '#b494f5', uart: '#4fc3f7', rs485: '#26c6da', modbus: '#ff7043', onewire: '#fdd835', dht: '#9ccc65' };
+  const NAME = { i2c: 'I2C', spi: 'SPI', can: 'CAN', canfd: 'CAN FD', uart: 'UART(SCI)', rs485: 'RS-485', modbus: 'Modbus RTU', onewire: '1-Wire', dht: 'DHT' };
+  (function css(){
+    if (document.getElementById('commAnimCss')) return;
+    const st = document.createElement('style'); st.id = 'commAnimCss';
+    st.textContent = `
+      .comm-chip{position:absolute; left:50%; top:-8px; transform:translate(-50%,-100%); z-index:60; pointer-events:none; white-space:nowrap;
+        font:600 10.5px/1.25 'IBM Plex Mono',ui-monospace,monospace; color:#0b0e12; background:var(--cc,#4fc3f7); border-radius:7px; padding:3px 7px 3px 6px;
+        box-shadow:0 2px 8px rgba(0,0,0,.35), 0 0 0 2px rgba(255,255,255,.55) inset; opacity:0; max-width:320px; overflow:hidden; text-overflow:ellipsis;}
+      .comm-chip::after{content:''; position:absolute; left:50%; bottom:-5px; margin-left:-5px; border:5px solid transparent; border-bottom:0; border-top-color:var(--cc,#4fc3f7);}
+      .comm-chip b{font-weight:800; margin-right:4px;}
+      .comm-chip .cc-dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:#fff; vertical-align:0; animation:ccBlink .18s steps(2) infinite;}
+      .comm-chip.go{animation:ccPop 1.5s ease-out forwards;}
+      @keyframes ccPop{0%{opacity:0; transform:translate(-50%,-80%) scale(.85);} 8%{opacity:1; transform:translate(-50%,-100%) scale(1.04);} 15%{transform:translate(-50%,-100%) scale(1);} 75%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-112%);}}
+      @keyframes ccBlink{0%{opacity:1;} 100%{opacity:.15;}}
+      .placed-component.comm-active, .board.comm-active{outline:2px solid var(--cc,#4fc3f7); outline-offset:3px; transition:outline-color .2s;}
+      .wire-path.comm-flow{stroke:var(--cf,#4fc3f7) !important; stroke-dasharray:8 7 !important; animation:commFlow .45s linear infinite; filter:drop-shadow(0 0 4px var(--cf,#4fc3f7)); stroke-width:3.4 !important;}
+      .wire-path.comm-flow.rev{animation-direction:reverse;}
+      @keyframes commFlow{to{stroke-dashoffset:-30;}}
+      body.comm-anim-off .comm-chip, body.comm-anim-off .wire-path.comm-flow{display:none !important;}
+      body.comm-anim-off .comm-active{outline:none !important;}
+    `;
+    document.head.appendChild(st);
+  })();
+  const lastAnim = new Map();
+  const timers = new WeakMap();
+  function ownerOf(el){
+    if (!el || !el.closest) return null;
+    const c = el.closest('.placed-component, .board');
+    if (!c) return null;
+    if (c.classList.contains('comp-breadboard') || c.classList.contains('comp-scope') || c.classList.contains('comp-multimeter') || /breadboard|scope|multimeter|logic/i.test(c.id)) return null;
+    return c;
+  }
+  function chipOn(owner, kind, text, role){
+    let chip = owner.querySelector(`:scope > .comm-chip[data-k="${kind}"]`);
+    if (!chip){ chip = document.createElement('div'); chip.className = 'comm-chip'; chip.dataset.k = kind; owner.appendChild(chip); if (getComputedStyle(owner).position === 'static') owner.style.position = 'relative'; }
+    Array.from(owner.querySelectorAll(':scope > .comm-chip')).forEach((x, i) => { x.style.top = (-8 - i * 24) + 'px'; });
+    chip.style.setProperty('--cc', COL[kind] || '#4fc3f7');
+    chip.innerHTML = `<span class="cc-dot"></span><b>${role === 'tx' ? '▶ ' + L('보냄', 'TX') : '◀ ' + L('받음', 'RX')}</b>${NAME[kind] || kind} ${String(text || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c])}`;
+    chip.classList.remove('go'); void chip.offsetWidth; chip.classList.add('go');
+    owner.style.setProperty('--cc', COL[kind] || '#4fc3f7');
+    owner.classList.add('comm-active');
+    clearTimeout(timers.get(owner)); timers.set(owner, setTimeout(() => owner.classList.remove('comm-active'), 700));
+  }
+  // kind, 보내는 쪽 핀(src), 이 통신이 지나가는 핀들(pins), 말풍선 글자
+  function anim(kind, src, pins, text){
+    try {
+      if (typeof isSimulating !== 'undefined' && !isSimulating) return;
+      const srcs = (Array.isArray(src) ? src : [src]).filter(Boolean);
+      const s0 = srcs[0];
+      const key = kind + ':' + (s0 && s0.dataset ? s0.dataset.pin : '') + ':' + (s0 && s0.closest && s0.closest('.board') ? s0.closest('.board').id : '');
+      const now = performance.now();
+      if (now - (lastAnim.get(key) || 0) < 90) return;
+      lastAnim.set(key, now);
+      const netPins = new Set();
+      (pins || []).forEach(p => { if (!p) return; try { netOf(p).forEach(x => netPins.add(x)); } catch (e) { netPins.add(p); } });
+      const txs = new Set(srcs.map(ownerOf).filter(Boolean));
+      const owners = new Map();
+      netPins.forEach(p => { const o = ownerOf(p); if (o && !owners.has(o)) owners.set(o, txs.has(o) ? 'tx' : 'rx'); });
+      txs.forEach(o => owners.set(o, 'tx'));
+      owners.forEach((role, o) => chipOn(o, kind, text, role));
+      (typeof wires !== 'undefined' ? wires : []).forEach(w => {
+        if (!w || !w.element) return;
+        if (!(netPins.has(w.from) || netPins.has(w.to))) return;
+        const el = w.element;
+        el.style.setProperty('--cf', COL[kind] || '#4fc3f7');
+        el.classList.add('comm-flow');
+        clearTimeout(timers.get(el)); timers.set(el, setTimeout(() => el.classList.remove('comm-flow'), 650));
+      });
+    } catch (e) {}
+  }
+  window.__commAnim = anim;
+
+  /* ---------------- UART(SCI) 8N1 ---------------- */
+  function uartSegs(bytes, baud){ const bt = 1000 / (baud || 9600), segs = []; for (const b of bytes){ segs.push([0, bt]); for (let k = 0; k < 8; k++) segs.push([(b >> k) & 1, bt]); segs.push([1, bt]); } return segs; }
+  // 보드 TX 핀에서 시작해, 같은 선에 물린 트랜시버를 거쳐 실제로 신호가 지나가는 모든 선을 모읍니다.
+  function uartLanes(board, txEl){
+    const h = HI(board), lanes = [lane(txEl, h, 0)], pins = [txEl], txs = [txEl];
+    let kind = 'uart';
+    try {
+      netOf(txEl).forEach(el => {
+        const pid = (el.dataset && el.dataset.pin) || '';
+        const m485 = el.closest && el.closest('.comp-rs485module');
+        if (m485 && /_DI$/.test(pid)){
+          kind = 'rs485'; txs.push(el);
+          const a = compPin(m485, 'A'), b = compPin(m485, 'B');
+          lanes.push(lane(a, 0.8, 0.2), lane(b, 0.2, 0.8)); pins.push(a, b);
+          const peers = (typeof rs485ModulePeers === 'function') ? rs485ModulePeers(m485) : [];
+          peers.forEach(pm => { const ro = compPin(pm, 'RO'); if (ro){ lanes.push(lane(ro, 1, 0)); pins.push(ro); } });
+          const ro0 = compPin(m485, 'RO'); if (ro0) pins.push(ro0);
+        }
+        const bt = el.closest && el.closest('.comp-btmodule');
+        if (bt && /_RXD$/.test(pid) && bt.dataset.pairId){
+          txs.push(el);
+          document.querySelectorAll('.comp-btmodule').forEach(pm => { if (pm !== bt && pm.dataset.pairId === bt.dataset.pairId){ const tx = compPin(pm, 'TXD'); if (tx){ lanes.push(lane(tx, 1, 0)); pins.push(tx); } } });
+        }
+      });
+    } catch (e) {}
+    return { lanes: uniq(lanes), pins, kind, txs };
+  }
+  function baudOf(board, txPin){ const m = mcuVM[board] || {}; return (m._baudPin && m._baudPin[txPin]) || (txPin === 'D1' || txPin === 'GPIO1' ? m._baud : 0) || (isEsp(board) ? 115200 : 9600); }
+  function uartOut(board, txPin, bytes, baud, label){
+    if (!bytes || !bytes.length) return;
+    const el = boardPin(board, txPin); if (!el) return;
+    const { lanes, pins, kind, txs } = uartLanes(board, el);
+    const t0 = startT(board, lanes, 0);
+    if (!backlog(t0)) play(lanes, t0, uartSegs(bytes, baud || baudOf(board, txPin)));
+    anim(label && label.kind || kind, txs, pins, (label && label.text) || `${baud || baudOf(board, txPin)}bps "${show(bytes)}"`);
+  }
+  window.__waveUart = uartOut;
+  const hwTx = (b) => isEsp(b) ? 'GPIO1' : 'D1';
+  if (typeof __serialTransmit === 'function'){
+    const o = __serialTransmit;
+    __serialTransmit = function(board, str){
+      if (depth === 0 && str && (typeof isSimulating === 'undefined' || isSimulating)) { try { uartOut(board, hwTx(board), bytesOf(String(str))); } catch (e) {} }
+      depth++; try { return o.apply(this, arguments); } finally { depth--; }
+    };
+  }
+  if (typeof window.__xuartTx === 'function'){
+    const o = window.__xuartTx;
+    window.__xuartTx = function(board, txPin, str){
+      if (depth === 0 && str && (typeof isSimulating === 'undefined' || isSimulating)) { try { uartOut(board, txPin, bytesOf(String(str))); } catch (e) {} }
+      depth++; try { return o.apply(this, arguments); } finally { depth--; }
+    };
+    try { __xuartTx = window.__xuartTx; } catch (e) {}
+  }
+  if (typeof __softSerialWrite === 'function'){
+    const o = __softSerialWrite;
+    __softSerialWrite = function(board, txPin, byte){
+      if (depth === 0 && (typeof isSimulating === 'undefined' || isSimulating)) { try { uartOut(board, txPin, [byte & 0xFF]); } catch (e) {} }
+      depth++; try { return o.apply(this, arguments); } finally { depth--; }
+    };
+  }
+
+  /* ---------------- RS-485 · Modbus RTU ---------------- */
+  function rs485TxPin(board){
+    try {
+      const m = findMyRs485Module(board); if (!m) return null;
+      const di = compPin(m, 'DI'); if (!di) return null;
+      const be = boardEl(board);
+      for (const el of netOf(di)) if (be && be.contains(el) && el.dataset.pin) return el.dataset.pin;
+    } catch (e) {}
+    return null;
+  }
+  function deDrive(board, on){ try { const m = findMyRs485Module(board); const de = m && compPin(m, 'DE'); if (!de) return; const be = boardEl(board); for (const el of netOf(de)) if (be && be.contains(el) && el.dataset.pin){ const a = arrFor(el); if (a) put({ arr: a, v1: HI(board), v0: 0, idle: 0 }, baseT(board), on ? 1 : 0); return; } } catch (e) {} }
+  function crc16(bytes){ let c = 0xFFFF; for (const b of bytes){ c ^= b; for (let k = 0; k < 8; k++) c = (c & 1) ? (c >>> 1) ^ 0xA001 : c >>> 1; } return [c & 0xFF, c >> 8]; }
+  if (typeof __rs485BusTransmit === 'function'){
+    const o = __rs485BusTransmit;
+    __rs485BusTransmit = function(board, bytes){
+      if (depth === 0 && bytes && bytes.length && (typeof isSimulating === 'undefined' || isSimulating)){
+        try { const tx = rs485TxPin(board); if (tx) uartOut(board, tx, bytes.slice(), (mcuVM[board] || {})._baud485 || 9600, { kind: 'rs485', text: `[${bytes.slice(0, 8).map(hex).join(' ')}${bytes.length > 8 ? ' …' : ''}]` }); } catch (e) {}
+      }
+      depth++; try { return o.apply(this, arguments); } finally { depth--; }
+    };
+  }
+  function modbusFrame(board, bytes, label){
+    const tx = rs485TxPin(board) || hwTx(board);
+    const fr = bytes.concat(crc16(bytes));
+    uartOut(board, tx, fr, (mcuVM[board] || {})._baud485 || 9600, { kind: 'modbus', text: label + ` [${fr.map(hex).join(' ')}]` });
+  }
+  const regs = (vals) => { const o = []; (vals || []).forEach(v => { v = Math.round(v) & 0xFFFF; o.push(v >> 8, v & 0xFF); }); return o; };
+  if (typeof __modbusReadRegs === 'function'){
+    const o = __modbusReadRegs;
+    __modbusReadRegs = function(from, id, addr, qty){
+      const r = o.apply(this, arguments);
+      try {
+        modbusFrame(from, [id & 0xFF, 0x03, (addr >> 8) & 0xFF, addr & 0xFF, (qty >> 8) & 0xFF, qty & 0xFF], `ID${id} FC03 ${L('읽기', 'read')} @${addr}×${qty}`);
+        const slave = (typeof __modbusFindSlave === 'function') ? __modbusFindSlave(from, id) : null;
+        if (r && slave){ const body = regs(r); setTimeout(() => { try { modbusFrame(slave, [id & 0xFF, 0x03, body.length].concat(body), `ID${id} ${L('응답', 'reply')} ${r.slice(0, 4).join(',')}`); } catch (e) {} }, 8); }
+      } catch (e) {}
+      return r;
+    };
+  }
+  if (typeof __modbusWriteRegs === 'function'){
+    const o = __modbusWriteRegs;
+    __modbusWriteRegs = function(from, id, addr, values){
+      const r = o.apply(this, arguments);
+      try {
+        const n = (values || []).length;
+        const req = n === 1 ? [id & 0xFF, 0x06, (addr >> 8) & 0xFF, addr & 0xFF].concat(regs(values))
+                            : [id & 0xFF, 0x10, (addr >> 8) & 0xFF, addr & 0xFF, 0, n & 0xFF, n * 2].concat(regs(values));
+        modbusFrame(from, req, `ID${id} FC${n === 1 ? '06' : '16'} ${L('쓰기', 'write')} @${addr}=${(values || []).slice(0, 4).join(',')}`);
+        const slave = (typeof __modbusFindSlave === 'function') ? __modbusFindSlave(from, id) : null;
+        if (r && slave){ const ack = n === 1 ? req.slice() : req.slice(0, 6); setTimeout(() => { try { modbusFrame(slave, ack, `ID${id} ${L('응답', 'reply')} OK`); } catch (e) {} }, 8); }
+      } catch (e) {}
+      return r;
+    };
+  }
+
+  /* ---------------- CAN 2.0 · CAN FD ---------------- */
+  function crc(bits, poly, width){ let c = 0; const top = 2 ** (width - 1), mod = 2 ** width; for (const b of bits){ const x = ((c >= top) ? 1 : 0) ^ b; c = (c * 2) % mod; if (x) c = (c ^ poly) >>> 0; } return c; }
+  const bitsOf = (v, n) => { const o = []; for (let k = n - 1; k >= 0; k--) o.push(Math.floor(v / 2 ** k) % 2); return o; };
+  const FD_LEN = [0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64];
+  // 결과: [[level, ms], ...]  (level 1 = recessive, 0 = dominant)
+  function canSegs(id, data, opt){
+    opt = opt || {};
+    const nb = 1 / ((opt.kbps || 500) * 1000) * 1000, db = opt.fd ? 1 / ((opt.dkbps || 2000) * 1000) * 1000 : nb;
+    const ext = opt.ext || id > 0x7FF;
+    let d = (data || []).map(v => v & 0xFF);
+    let dlc;
+    if (opt.fd){ dlc = FD_LEN.findIndex(n => n >= d.length); if (dlc < 0) dlc = 15; while (d.length < FD_LEN[dlc]) d.push(0); }
+    else { d = d.slice(0, 8); dlc = d.length; }
+    const head = [0];
+    if (ext){ head.push(...bitsOf(id >>> 18 & 0x7FF, 11), 1, 1, ...bitsOf(id & 0x3FFFF, 18)); }
+    else head.push(...bitsOf(id & 0x7FF, 11));
+    let fastFrom = -1;
+    if (opt.fd){ head.push(0, ext ? 0 : 0); if (!ext) {} head.push(1, 0, 1); fastFrom = head.length; head.push(0); }   // RRS · IDE · FDF · res · BRS | ESI
+    else head.push(0, ...(ext ? [0, 0] : [0, 0]));                                                                       // RTR · (r1) · r0 / IDE · r0
+    const body = head.concat(bitsOf(dlc, 4)); d.forEach(b => body.push(...bitsOf(b, 8)));
+    const out = []; let run = 0, last = -1, stuffCount = 0;
+    body.forEach((b, i) => {
+      const fast = fastFrom >= 0 && i >= fastFrom;
+      out.push([b, fast ? db : nb]);
+      if (b === last) run++; else { run = 1; last = b; }
+      if (run === 5){ const sb = 1 - b; out.push([sb, fast ? db : nb]); last = sb; run = 1; stuffCount++; }
+    });
+    let crcBits;
+    if (opt.fd){
+      const w = d.length > 16 ? 21 : 17, c = crc(body, w === 21 ? 0x102899 : 0x1685B, w);
+      const g = [0, 1, 3, 2, 6, 7, 5, 4][stuffCount % 8], sc = bitsOf(g, 3); sc.push(sc.reduce((a, b) => a ^ b, 0));
+      const fld = sc.concat(bitsOf(c, w)); crcBits = [];
+      let prev = out[out.length - 1][0];
+      fld.forEach((b, i) => { if (i % 4 === 0){ crcBits.push([1 - prev, db]); } crcBits.push([b, db]); prev = b; });
+    } else {
+      const c = crc(body, 0x4599, 15); crcBits = [];
+      bitsOf(c, 15).forEach(b => { crcBits.push([b, nb]); if (b === last) run++; else { run = 1; last = b; } if (run === 5){ crcBits.push([1 - b, nb]); last = 1 - b; run = 1; } });
+    }
+    const tail = [[1, opt.fd ? db : nb], [opt.ack ? 0 : 1, nb], [1, nb], [1, nb * 7], [1, nb * 3]];
+    return out.concat(crcBits, tail);
+  }
+  function canLanes(xcvrs, ttlEls){
+    const lanes = [];
+    xcvrs.forEach(x => {
+      const h = compPin(x, 'H') || compPin(x, 'CANH'), l = compPin(x, 'L') || compPin(x, 'CANL');
+      if (h) lanes.push(lane(h, 0.5, 0.7)); if (l) lanes.push(lane(l, 0.5, 0.3));
+    });
+    (ttlEls || []).forEach(([el, hi]) => { if (el) lanes.push(lane(el, hi, 0)); });
+    return uniq(lanes);
+  }
+  function csPulse(board, mod, nbytes){
+    try { const cs = compPin(mod, 'CS'); const be = boardEl(board); if (!cs || !be) return 0; for (const el of netOf(cs)) if (be.contains(el) && el.dataset.pin){ const l = lane(el, HI(board), 0); const t = startT(board, [l], 0.002); const dur = nbytes * 8 * 0.000125 + 0.002; play([l], t, [[0, dur], [1, 0.001]]); return dur; } } catch (e) {}
+    return 0;
+  }
+  if (typeof __canBusTransmit === 'function'){
+    const o = __canBusTransmit;
+    __canBusTransmit = function(board, packet, cls){
+      const r = o.apply(this, arguments);
+      try {
+        if (typeof isSimulating !== 'undefined' && !isSimulating) return r;
+        const me = findMyCanModule(board, cls); if (!me || !packet) return r;
+        const fd = cls === 'comp-canfdmodule';
+        const peers = canModulePeers(me, cls);
+        const all = [me].concat(peers);
+        const lanes = canLanes(all, []);
+        csPulse(board, me, 6 + ((packet.data || []).length));
+        const t0 = startT(board, lanes, 0.004) + 0.012;
+        if (!backlog(t0)) play(lanes, t0, canSegs(Number(packet.id) || 0, packet.data || [], { fd, ack: !!r }));
+        const kind = fd ? 'canfd' : 'can';
+        let csB = null; try { const be = boardEl(board); for (const el of netOf(compPin(me, 'CS'))) if (be && be.contains(el)){ csB = el; break; } } catch (e) {}
+        anim(kind, [csB, compPin(me, 'CS')], all.map(m => compPin(m, 'H')).concat(all.map(m => compPin(m, 'CS'))), `ID 0x${(Number(packet.id) || 0).toString(16).toUpperCase()} [${(packet.data || []).slice(0, 8).map(hex).join(' ')}${(packet.data || []).length > 8 ? ' …' : ''}]`);
+      } catch (e) {}
+      return r;
+    };
+  }
+  // ESP32 TWAI + SN65HVD230 — canSend() 안에서 불립니다.
+  window.__waveTwai = function(board, me, f){
+    try {
+      const h = compPin(me, 'CANH'); if (!h) return;
+      const bus = new Set(netOf(h));
+      const xs = Array.from(document.querySelectorAll('.comp-bk-ext[data-bk-type="sn65hvd230"], .comp-canmodule')).filter(x => { const xh = compPin(x, 'CANH'); return xh && bus.has(xh); });
+      const be = boardEl(board), ctx = compPin(me, 'CTX');
+      let ctxBoard = null; if (ctx && be) for (const el of netOf(ctx)) if (be.contains(el) && el.dataset.pin){ ctxBoard = el; break; }
+      const ttl = [[ctxBoard, HI(board)]]; xs.forEach(x => ttl.push([compPin(x, 'CRX'), 0.66]));
+      const lanes = canLanes(xs, ttl);
+      const t0 = startT(board, lanes, 0.004);
+      if (!backlog(t0)) play(lanes, t0, canSegs(Number(f.id) || 0, (f.data || []).slice(0, f.len != null ? f.len : 8), { ack: xs.length > 1 }));
+      anim('can', [ctxBoard, ctx], [ctx, h].concat(xs.map(x => compPin(x, 'CRX'))), `TWAI ID 0x${(Number(f.id) || 0).toString(16).toUpperCase()} [${(f.data || []).slice(0, f.len != null ? f.len : 8).map(hex).join(' ')}]`);
+    } catch (e) {}
+  };
+
+  // RS-485 버스 서보(RS485Servo.setAngle) — 다이나믹셀 비슷한 프레임 FF FF ID LEN INST ADDR 값 CHK, 115200 bps
+  window.__waveRs485Servo = function(board, dataPinEl, id, angle){
+    try {
+      const be = boardEl(board); let pin = null;
+      for (const el of netOf(dataPinEl)) if (be && be.contains(el) && el.dataset.pin){ pin = el.dataset.pin; break; }
+      if (!pin) return;
+      const v = Math.round(angle * 1023 / 180), body = [id & 0xFF, 5, 0x03, 0x1E, v & 0xFF, v >> 8];
+      const chk = (~body.reduce((a, b) => a + b, 0)) & 0xFF;
+      uartOut(board, pin, [0xFF, 0xFF].concat(body, [chk]), 115200, { kind: 'rs485', text: `ID${id} → ${angle}°` });
+    } catch (e) {}
+  };
+
+  /* ---------------- I2C (센서 라이브러리) — __i2cWaveTx 로 보냄 ---------------- */
+  function i2cRead(board, addr, reg, n, seed){
+    if (typeof __i2cWaveTx !== 'function') return;
+    let x = (Math.abs(Math.round((seed || 0) * 100)) + 7) >>> 0; const bytes = [];
+    for (let i = 0; i < n; i++){ x = (x * 1103515245 + 12345) >>> 0; bytes.push((x >>> 16) & 0xFF); }
+    __i2cWaveTx(board, addr, [reg], { noAnim: true });
+    __i2cWaveTx(board, addr, bytes, { read: true, noAnim: true });
+    i2cAnim(board, addr, `0x${hex(addr)} ${L('읽기', 'read')} reg 0x${hex(reg)} ×${n}`);
+  }
+  function i2cAnim(board, addr, text){
+    try { const p = I2C_PINS[typeOf(board)]; if (!p) return; const sda = boardPin(board, p.sda), scl = boardPin(board, p.scl); anim('i2c', sda, [sda, scl], text); } catch (e) {}
+  }
+  window.__i2cAnim = i2cAnim;
+  function wrapM(proto, name, after){ if (!proto || typeof proto[name] !== 'function' || proto[name].__w) return; const o = proto[name]; const f = function(){ const r = o.apply(this, arguments); try { after.call(this, r, arguments); } catch (e) {} return r; }; f.__w = true; proto[name] = f; }
+
+  /* ---------------- SPI (SD 카드 · SPI.transfer) ---------------- */
+  function spiPins(board){ if (isEsp(board)) return { sck: 'GPIO18', mosi: 'GPIO23', miso: 'GPIO19', cs: 'GPIO5' }; if (isMega(board)) return { sck: 'D52', mosi: 'D51', miso: 'D50', cs: 'D53' }; return { sck: 'D13', mosi: 'D11', miso: 'D12', cs: 'D10' }; }
+  function spiOut(board, csName, mosi, miso, label){
+    const P = spiPins(board), h = HI(board);
+    const els = { sck: boardPin(board, P.sck), mosi: boardPin(board, P.mosi), miso: boardPin(board, P.miso), cs: csName ? boardPin(board, csName) : null };
+    const lk = els.sck && lane(els.sck, h, 0, 0), lo = els.mosi && lane(els.mosi, h, 0, 1), li = els.miso && lane(els.miso, h, 0, 1), lc = els.cs && lane(els.cs, h, 0, 1);
+    const all = [lk, lo, li, lc].filter(Boolean); if (!lk) return;
+    let t = startT(board, all, 0.002); if (backlog(t)) return;
+    const Q = 0.000125;   // 4 MHz → 비트 0.25 µs
+    if (lc){ put(lc, t, 0); t += 0.001; }
+    mosi.forEach((b, i) => {
+      const r = miso ? (miso[i] != null ? miso[i] : 0xFF) : 0xFF;
+      for (let k = 7; k >= 0; k--){ if (lo) put(lo, t, (b >> k) & 1); if (li) put(li, t, (r >> k) & 1); t += Q; put(lk, t, 1); t += Q; put(lk, t, 0); }
+      t += 0.0004;
+    });
+    if (lo) put(lo, t, 1); if (li) put(li, t, 1);
+    if (lc){ t += 0.001; put(lc, t, 1); }
+    all.forEach(l => { if (l.arr.length > 30000) l.arr.splice(0, l.arr.length - 24000); });
+    anim('spi', els.sck, [els.sck, els.mosi, els.miso, els.cs], label || `[${mosi.slice(0, 6).map(hex).join(' ')}${mosi.length > 6 ? ' …' : ''}]`);
+  }
+  window.__waveSpi = spiOut;
+
+  /* ---------------- 1-Wire (DS18B20) · DHT11/22 ---------------- */
+  function owOut(board, pin, writeBytes, readBytes, label){
+    const el = boardPin(board, pinName(board, pin)); if (!el) return;
+    const l = lane(el, HI(board), 0, 1); let t = startT(board, [l], 0.05); if (backlog(t)) return;
+    const segs = [[0, 0.48], [1, 0.07], [0, 0.12], [1, 0.29]];                            // 리셋 480 µs · 존재 펄스
+    (writeBytes || []).forEach(b => { for (let k = 0; k < 8; k++){ const bit = (b >> k) & 1; segs.push(bit ? [0, 0.006] : [0, 0.06], bit ? [1, 0.064] : [1, 0.01]); } });
+    (readBytes || []).forEach(b => { for (let k = 0; k < 8; k++){ const bit = (b >> k) & 1; segs.push(bit ? [0, 0.006] : [0, 0.03], bit ? [1, 0.064] : [1, 0.04]); } });
+    play([l], t, segs);
+    anim('onewire', el, [el], label);
+  }
+  const lastDht = {};
+  window.__waveDht = function(board, pin, hum, temp){
+    try {
+      const name = pinName(board, pin), key = board + ':' + name, now = performance.now();
+      if (now - (lastDht[key] || 0) < 900) return; lastDht[key] = now;
+      const el = boardPin(board, name); if (!el) return;
+      const l = lane(el, HI(board), 0, 1); const t = startT(board, [l], 0.05); if (backlog(t)) return;
+      const h = Math.max(0, Math.round(hum || 0)), c = Math.round(Math.abs(temp || 0)), cd = Math.round((Math.abs(temp || 0) % 1) * 10);
+      const bytes = [h & 0xFF, 0, c & 0xFF, cd & 0xFF]; bytes.push(bytes.reduce((a, b) => a + b, 0) & 0xFF);
+      const segs = [[0, 18], [1, 0.03], [0, 0.08], [1, 0.08]];                              // 시작 신호 18 ms · 응답 80/80 µs
+      bytes.forEach(b => { for (let k = 7; k >= 0; k--){ segs.push([0, 0.05], [1, ((b >> k) & 1) ? 0.07 : 0.026]); } });
+      segs.push([0, 0.05], [1, 0.01]);
+      play([l], t, segs);
+      anim('dht', el, [el], `${L('습도', 'RH')} ${h}% · ${temp != null ? temp : '?'}°C [${bytes.map(hex).join(' ')}]`);
+    } catch (e) {}
+  };
+
+  /* ---------------- 라이브러리 확장(보드마다) — I2C 센서 · SD · SPI · 1-Wire ---------------- */
+  const prevAug = window.__bookAugment;
+  window.__bookAugment = function(board, E, L_){
+    if (typeof prevAug === 'function') prevAug.apply(this, arguments);
+    try {
+      const A = (cls, name, fn) => { if (L_[cls] && L_[cls].prototype) wrapM(L_[cls].prototype, name, fn); };
+      // BME280 (0x76)
+      A('Adafruit_BME280', 'begin', function(r, a){ this.__a = (a[0] != null ? a[0] : 0x76); i2cRead(board, this.__a, 0xD0, 1, 0x60); });
+      A('Adafruit_BME280', 'readTemperature', function(r){ i2cRead(board, this.__a || 0x76, 0xFA, 3, r); });
+      A('Adafruit_BME280', 'readPressure', function(r){ i2cRead(board, this.__a || 0x76, 0xF7, 3, r); });
+      A('Adafruit_BME280', 'readHumidity', function(r){ i2cRead(board, this.__a || 0x76, 0xFD, 2, r); });
+      // MPU-6050 (0x68)
+      A('Adafruit_MPU6050', 'begin', function(r, a){ this.__a = (a[0] != null ? a[0] : 0x68); i2cRead(board, this.__a, 0x75, 1, 0x68); });
+      A('Adafruit_MPU6050', 'getEvent', function(){ i2cRead(board, this.__a || 0x68, 0x3B, 14, performance.now() % 997); });
+      // RTC
+      [['RTC_DS1307', 0x68], ['RTC_DS3231', 0x68], ['RTC_PCF8523', 0x68], ['RTC_PCF8563', 0x51]].forEach(([c, ad]) => {
+        A(c, 'now', function(){ i2cRead(board, ad, ad === 0x51 ? 0x02 : 0x00, 7, Date.now() / 1000 % 9973); });
+        A(c, 'adjust', function(){ if (typeof __i2cWaveTx === 'function'){ __i2cWaveTx(board, ad, [0x00, 0, 0, 0, 1, 1, 1, 0x26], { noAnim: true }); i2cAnim(board, ad, `0x${hex(ad)} ${L('시간 쓰기', 'set time')}`); } });
+      });
+      // SD 카드 (SPI)
+      if (L_.SD){
+        const sd = L_.SD; let cs = isEsp(board) ? 'GPIO5' : (isMega(board) ? 'D53' : 'D10');
+        const ob = sd.begin; if (typeof ob === 'function' && !ob.__w){ sd.begin = function(p){ if (p != null && typeof p !== 'object') cs = pinName(board, p); const r = ob.apply(this, arguments); try { spiOut(board, cs, [0x40, 0, 0, 0, 0, 0x95, 0xFF], [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01], 'SD CMD0 ' + L('초기화', 'init')); } catch (e) {} return r; }; sd.begin.__w = true; }
+        const Fp = sd.File && sd.File.prototype;
+        if (Fp){
+          ['write', 'print', 'println'].forEach(m => wrapM(Fp, m, function(r, a){ const s = a[0] == null ? '' : (typeof a[0] === 'number' && m === 'write' ? String.fromCharCode(a[0] & 0xFF) : String(a[0])) + (m === 'println' ? '\r\n' : ''); const b = bytesOf(s).slice(0, 24); spiOut(board, cs, [0x58, 0, 0, 0, 0, 0xFF, 0xFE].concat(b), null, `SD ${L('쓰기', 'write')} "${show(b, 10)}"`); }));
+          wrapM(Fp, 'read', function(r){ spiOut(board, cs, [0x51, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF], [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE, (r >= 0 ? r : 0xFF) & 0xFF], `SD ${L('읽기', 'read')}`); });
+        }
+      }
+      // SPI.transfer
+      if (L_.SPI && typeof L_.SPI.transfer === 'function' && !L_.SPI.transfer.__w){ const o = L_.SPI.transfer; L_.SPI.transfer = function(b){ const r = o.apply(this, arguments); try { if (typeof b === 'number') spiOut(board, null, [b & 0xFF], [typeof r === 'number' ? r & 0xFF : 0xFF]); } catch (e) {} return r; }; L_.SPI.transfer.__w = true; }
+      // 1-Wire DS18B20
+      A('DallasTemperature', 'requestTemperatures', function(){ owOut(board, this.ow ? this.ow.pin : 2, [0xCC, 0x44], [], L('온도 변환 명령', 'convert T') + ' [CC 44]'); });
+      A('DallasTemperature', 'getTempCByIndex', function(r){ const raw = Math.round((r || 0) * 16) & 0xFFFF; owOut(board, this.ow ? this.ow.pin : 2, [0xCC, 0xBE], [raw & 0xFF, raw >> 8, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x1C], `${L('읽기', 'read')} ${r}°C`); });
+    } catch (e) { console.warn('comm wave aug', e); }
+  };
+})();
+
+/* =====================================================================
+   [임베디드 Ver1.45 · PLC Ver1.26] 🎬 동작 원리 + 📡 통신 프로토콜 설명
+   통신을 쓰는 부품의 ▶(동작 원리) 창에, 부품 원리 애니메이션이 끝나면 이어서
+   그 부품이 쓰는 통신 규약(I2C · UART/SCI · SPI · CAN · CAN FD · RS-485/Modbus RTU ·
+   Modbus TCP · DHT 단선)을 실제 비트 파형 + 프레임 필드 + 장치 사이 데이터 흐름으로 보여 줍니다.
+   ===================================================================== */
+(function(){
+  'use strict';
+  const start = () => {
+    const PR = window.__principle;
+    if (!PR || !PR.kinds || !PR.MAP || PR.__proto) return !!(PR && PR.__proto);
+    PR.__proto = true;
+    const K = PR.kinds, MAP = PR.MAP;
+    const LG = () => { try { return (typeof currentLang !== 'undefined' && currentLang === 'en') ? 'en' : 'ko'; } catch (e) { return 'ko'; } };
+    const L = (ko, en) => (LG() === 'en' && en) ? en : ko;
+    const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+    const f1 = (v) => (+v).toFixed(1);
+    const esc = (s) => String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c]);
+    const tx = (x, y, s, o = {}) => `<text x="${f1(x)}" y="${f1(y)}" font-size="${o.fs || 11}" fill="${o.c || '#0f172a'}" text-anchor="${o.a || 'middle'}" font-weight="${o.b ? 700 : 500}" font-family="'Malgun Gothic','Segoe UI',sans-serif" ${o.ex || ''}>${esc(s)}</text>`;
+    const rect = (x, y, w, h, fill, o = {}) => `<rect x="${f1(x)}" y="${f1(y)}" width="${f1(Math.max(0, w))}" height="${f1(h)}" rx="${o.rx == null ? 4 : o.rx}" fill="${fill || 'none'}" stroke="${o.s || '#0f172a'}" stroke-width="${o.sw == null ? 1.4 : o.sw}" ${o.ex || ''}/>`;
+    const ln = (x1, y1, x2, y2, c, w, ex) => `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="${c || '#0f172a'}" stroke-width="${w || 1.6}" stroke-linecap="round" ${ex || ''}/>`;
+    const poly = (pts, c, w, ex) => `<polyline points="${pts.map(p => f1(p[0]) + ',' + f1(p[1])).join(' ')}" fill="none" stroke="${c}" stroke-width="${w || 2}" stroke-linejoin="round" ${ex || ''}/>`;
+
+    /* ---------- 슬롯 → 파형 · 필드 ----------
+       슬롯: { d: 길이, v: { 선이름: 레벨(0~1) }, f: 필드 이름 } */
+    function build(lanes, slots){
+      const total = slots.reduce((a, s) => a + s.d, 0); let x = 0; const ch = {}, fields = [];
+      lanes.forEach(l => { ch[l.k] = []; });
+      const cur = {}; lanes.forEach(l => { cur[l.k] = l.idle == null ? 1 : l.idle; });
+      slots.forEach(s => {
+        lanes.forEach(l => { if (s.v && s.v[l.k] != null) cur[l.k] = s.v[l.k]; ch[l.k].push([x / total, cur[l.k]]); });
+        if (s.f){ const lf = fields[fields.length - 1]; if (lf && lf.f === s.f && Math.abs(lf.x1 - x / total) < 1e-9) lf.x1 = (x + s.d) / total; else fields.push({ f: s.f, x0: x / total, x1: (x + s.d) / total, c: s.fc, sub: s.sub }); }
+        x += s.d;
+      });
+      lanes.forEach(l => ch[l.k].push([1, cur[l.k]]));
+      return { lanes, ch, fields };
+    }
+    const bitsOf = (v, n) => { const o = []; for (let k = n - 1; k >= 0; k--) o.push(Math.floor(v / 2 ** k) % 2); return o; };
+    const FC = ['#fde68a', '#bfdbfe', '#bbf7d0', '#fbcfe8', '#ddd6fe', '#fed7aa', '#a5f3fc', '#e2e8f0'];
+
+    // 파형 그림: x 40~490, 선마다 높이 28
+    function drawTiming(D, u, o = {}){
+      const X0 = 40, W = 450, top = o.top || 120, LH = o.lh || 30; let s = '';
+      const xc = X0 + W * u;
+      // 필드 띠
+      const fy = top + D.lanes.length * LH + 6;
+      D.fields.forEach((fd, i) => {
+        const a = X0 + W * fd.x0, b = X0 + W * fd.x1, act = u >= fd.x0 && u < fd.x1, done = u >= fd.x1;
+        s += rect(a + .5, fy, b - a - 1, 18, act ? '#facc15' : (done ? (fd.c || FC[i % FC.length]) : '#f1f5f9'), { s: act ? '#b45309' : '#cbd5e1', sw: act ? 1.6 : .8, rx: 3 });
+        if (b - a > 13) s += tx((a + b) / 2, fy + 13, fd.f, { fs: b - a > 34 ? 9.5 : 8, b: act, c: done || act ? '#0f172a' : '#94a3b8' });
+      });
+      D.lanes.forEach((l, i) => {
+        const y0 = top + i * LH, hi = y0 + 4, lo = y0 + LH - 8, Y = (v) => lo - (lo - hi) * v;
+        s += tx(X0 - 4, y0 + LH / 2 + 2, l.nm, { a: 'end', fs: 9.5, b: 1, c: l.c });
+        const pts = [], done = []; let prev = null;
+        D.ch[l.k].forEach(([x, v]) => { const px = X0 + W * x; if (prev != null) { pts.push([px, Y(prev)]); if (x <= u) done.push([px, Y(prev)]); } pts.push([px, Y(v)]); if (x <= u) done.push([px, Y(v)]); prev = v; });
+        if (done.length){ const lastV = done[done.length - 1]; done.push([xc, lastV[1]]); }
+        s += poly(pts, '#e2e8f0', 1.6) + (done.length > 1 ? poly(done, l.c, 2.4) : '');
+      });
+      s += ln(xc, top - 4, xc, fy + 20, '#f43f5e', 1.2, 'stroke-dasharray="3 2"');
+      return s;
+    }
+    // 장치 블록 + 움직이는 데이터 묶음
+    function drawDevices(devs, from, to, u, label, color, o = {}){
+      let s = ''; const y = o.y || 58;
+      if (o.bus) s += ln(devs[0].x, y + (o.busDy || 26), devs[devs.length - 1].x, y + (o.busDy || 26), o.busC || '#64748b', 3);
+      devs.forEach((d, i) => { const act = i === from || (Array.isArray(to) ? to.includes(i) : i === to);
+        if (o.bus) s += ln(d.x, y + 16, d.x, y + (o.busDy || 26), o.busC || '#64748b', 2);
+        s += rect(d.x - (d.w || 46), y - 16, (d.w || 46) * 2, 32, act ? (i === from ? '#dbeafe' : '#dcfce7') : '#f8fafc', { s: act ? '#0f172a' : '#94a3b8' }) + tx(d.x, y + 4, d.nm, { fs: 10.5, b: 1 }); });
+      if (label && u > 0 && u < 1){
+        const A = devs[from], B = devs[Array.isArray(to) ? to[0] : to];
+        const px = A.x + (B.x - A.x) * u, py = o.bus ? y + (o.busDy || 26) : y - 26;
+        s += rect(px - 34, py - 9, 68, 18, color || '#fde68a', { rx: 9, s: '#0f172a', sw: 1 }) + tx(px, py + 4, label, { fs: 9, b: 1 });
+      }
+      return s;
+    }
+    // 단계 시각(초) → st 배열
+    const ST = (arr) => arr.map(a => [a[0], a[1], a[2]]);
+
+    /* =================== I2C =================== */
+    function i2cData(){
+      const lanes = [{ k: 'scl', nm: 'SCL', c: '#ea580c' }, { k: 'sda', nm: 'SDA', c: '#2563eb' }];
+      const S = []; const bit = (b, f, fc) => { S.push({ d: .25, v: { sda: b, scl: 0 }, f, fc }, { d: .5, v: { scl: 1 }, f, fc }, { d: .25, v: { scl: 0 }, f, fc }); };
+      S.push({ d: .8, v: { sda: 1, scl: 1 }, f: L('대기', 'idle') });
+      S.push({ d: .5, v: { sda: 0 }, f: 'S', fc: '#fecaca' }, { d: .3, v: { scl: 0 }, f: 'S', fc: '#fecaca' });
+      bitsOf(0x27, 7).forEach(b => bit(b, L('주소 0x27', 'addr 0x27'), '#fde68a')); bit(0, 'W', '#ddd6fe'); bit(0, 'ACK', '#bbf7d0');
+      bitsOf(0x48, 8).forEach(b => bit(b, L('데이터 0x48', 'data 0x48'), '#bfdbfe')); bit(0, 'ACK', '#bbf7d0');
+      S.push({ d: .3, v: { sda: 0 }, f: 'P', fc: '#fecaca' }, { d: .4, v: { scl: 1 }, f: 'P', fc: '#fecaca' }, { d: .4, v: { sda: 1 }, f: 'P', fc: '#fecaca' }, { d: .6, f: L('대기', 'idle') });
+      return build(lanes, S);
+    }
+    const I2C = i2cData();
+    K['proto-i2c'] = { n: ['I2C 통신 (2선 · 주소 방식)', 'I2C bus'], T: 12,
+      st: ST([[0, '대기: SDA · SCL 두 선 모두 풀업 저항으로 HIGH', 'Idle: both lines pulled HIGH'], [1.2, 'START: SCL 이 HIGH 인 동안 SDA 를 LOW 로 내림 → 통신 시작 신호', 'START: SDA falls while SCL HIGH'],
+        [2, '주소 7비트(예: LCD 0x27) + 쓰기(W=0)/읽기(R=1) 1비트 — SCL 이 HIGH 일 때 SDA 값을 읽음', '7-bit address + R/W, sampled while SCL HIGH'], [5.3, 'ACK: 주소가 맞는 장치가 9번째 클록에 SDA 를 LOW 로 잡아 "들었다"고 대답', 'ACK: addressed device pulls SDA LOW'],
+        [5.9, '데이터 8비트(MSB 먼저) + ACK — 여러 바이트를 이어서 보낼 수 있음', 'Data bytes (MSB first) + ACK'], [10, 'STOP: SCL 이 HIGH 인 동안 SDA 를 HIGH 로 올림 → 버스 해제', 'STOP: SDA rises while SCL HIGH']]),
+      how: 'I2C 는 SDA(데이터)와 SCL(클록) 두 선만으로 여러 장치를 연결하는 동기식 직렬 통신입니다. 보드(마스터)가 클록을 만들고, 장치마다 정해진 7비트 주소(LCD 0x27 · OLED 0x3C · MPU6050 0x68 · BME280 0x76 등)로 상대를 고릅니다. 선은 오픈 드레인이라 누구든 LOW 로만 끌어내리고, HIGH 는 풀업 저항이 만듭니다. 표준 속도는 100 kHz(비트 하나 10 µs), 빠른 모드는 400 kHz 입니다.',
+      pts: ['UNO R3/R4: SDA = A4, SCL = A5 · Mega: 20/21 · ESP32: 21/22', '같은 주소의 장치 두 개는 한 버스에 못 씀', '오실로스코프 TIME/DIV 20 µs + 트리거로 비트 확인', 'Wire.beginTransmission(주소) · write() · endTransmission()'],
+      d: (t) => { const u = clamp((t - .6) / 10.6); const fd = I2C.fields.find(f => u >= f.x0 && u < f.x1);
+        return drawDevices([{ x: 90, nm: L('보드(마스터)', 'MCU master'), w: 52 }, { x: 260, nm: 'LCD 0x27' }, { x: 420, nm: 'OLED 0x3C' }], 0, 1, u, fd ? fd.f : '', '#fde68a', { bus: 1, busDy: 30 })
+          + tx(260, 104, L('풀업 저항이 두 선을 HIGH 로 유지 — 주소가 맞는 장치만 대답(ACK)', 'pull-ups keep lines HIGH; only the addressed device ACKs'), { fs: 10, c: '#64748b' }) + drawTiming(I2C, u, { top: 120, lh: 40 }); } };
+
+    /* =================== UART (SCI) =================== */
+    function uartData(){
+      const lanes = [{ k: 'tx', nm: 'TX→RX', c: '#0284c7' }]; const S = [{ d: 1, v: { tx: 1 }, f: L('대기 HIGH', 'idle') }, { d: 1, v: { tx: 0 }, f: L('시작', 'start'), fc: '#fecaca' }];
+      const b = 0x41; for (let k = 0; k < 8; k++) S.push({ d: 1, v: { tx: (b >> k) & 1 }, f: 'D' + k, fc: '#bfdbfe' });
+      S.push({ d: 1, v: { tx: 1 }, f: L('정지', 'stop'), fc: '#bbf7d0' }, { d: 1.2, v: { tx: 1 }, f: L('대기', 'idle') });
+      return build(lanes, S);
+    }
+    const UART = uartData();
+    K['proto-uart'] = { n: ['UART · SCI 시리얼 통신 (비동기)', 'UART / SCI serial'], T: 10,
+      st: ST([[0, '대기 중에는 TX 선이 HIGH(마크)', 'Line idles HIGH'], [1.2, '시작 비트: LOW 로 한 비트 — 받는 쪽은 이 떨어지는 순간부터 시간을 잼', 'Start bit (LOW) — receiver syncs here'],
+        [2, '데이터 8비트를 LSB(D0) 부터 보냄 — 예: 문자 "A" = 0x41 = 0100 0001', '8 data bits, LSB first ("A" = 0x41)'], [7.2, '정지 비트: HIGH 로 한 비트 → 다음 바이트를 받을 준비', 'Stop bit (HIGH)'], [8.2, '클록 선이 없으므로 양쪽 보레이트(9600 · 115200 bps)가 같아야 함', 'No clock — both sides need the same baud rate']]),
+      how: 'UART(SCI) 는 클록 없이 TX(보냄) · RX(받음) 두 선으로 주고받는 비동기 직렬 통신입니다. 한 바이트는 시작 비트(0) + 데이터 8비트 + 정지 비트(1), 즉 8N1 형식입니다. 9600 bps 이면 비트 하나가 약 104 µs, 한 글자에 약 1 ms 가 걸립니다. 내 TX 는 상대 RX 로, 상대 TX 는 내 RX 로 엇갈려 연결하고 GND 를 함께 묶습니다.',
+      pts: ['TX ↔ RX 교차 연결, GND 공통', 'UNO: D0(RX) · D1(TX) — 업로드할 때는 비워 둠', 'SoftwareSerial 로 다른 핀도 사용 가능', '블루투스 HC-05 · 미세먼지 센서 · RS-485 모듈도 UART 로 연결'],
+      d: (t) => { const u = clamp((t - .6) / 8.4); const fd = UART.fields.find(f => u >= f.x0 && u < f.x1);
+        return drawDevices([{ x: 110, nm: L('보드 TX', 'MCU TX'), w: 50 }, { x: 410, nm: L('상대 RX', 'peer RX'), w: 50 }], 0, 1, u, fd ? fd.f : '', '#bae6fd')
+          + tx(260, 100, '9600 bps · 8N1 · ' + L('문자', 'char') + ' "A" = 0x41', { fs: 11, b: 1, c: '#0369a1' }) + drawTiming(UART, u, { top: 130, lh: 70 }); } };
+
+    /* =================== SPI =================== */
+    function spiData(){
+      const lanes = [{ k: 'cs', nm: 'CS', c: '#dc2626' }, { k: 'sck', nm: 'SCK', c: '#ea580c', idle: 0 }, { k: 'mosi', nm: 'MOSI', c: '#2563eb' }, { k: 'miso', nm: 'MISO', c: '#16a34a' }];
+      const S = [{ d: .8, v: { cs: 1, sck: 0, mosi: 1, miso: 1 }, f: L('대기', 'idle') }, { d: .5, v: { cs: 0 }, f: 'CS↓', fc: '#fecaca' }];
+      const mo = bitsOf(0x51, 8), mi = bitsOf(0xFE, 8);
+      for (let k = 0; k < 8; k++) S.push({ d: .3, v: { mosi: mo[k], miso: mi[k], sck: 0 }, f: L('8클록 동시 교환', '8 clocks, full duplex'), fc: '#bfdbfe' }, { d: .3, v: { sck: 1 }, f: L('8클록 동시 교환', '8 clocks, full duplex'), fc: '#bfdbfe' });
+      S.push({ d: .3, v: { sck: 0 }, f: L('8클록 동시 교환', '8 clocks, full duplex'), fc: '#bfdbfe' }, { d: .5, v: { cs: 1, mosi: 1, miso: 1 }, f: 'CS↑', fc: '#fecaca' }, { d: .8, f: L('대기', 'idle') });
+      return build(lanes, S);
+    }
+    const SPI = spiData();
+    K['proto-spi'] = { n: ['SPI 통신 (4선 · 고속 동기)', 'SPI bus'], T: 10,
+      st: ST([[0, '마스터가 통신할 장치의 CS(칩 선택)를 LOW 로 → 그 장치만 깨어남', 'Master pulls the device CS LOW'], [1.4, 'SCK 클록 한 번에 1비트씩: MOSI(보드→장치)와 MISO(장치→보드)가 동시에 오감', 'Each SCK clock moves one bit each way'],
+        [5.8, '8클록이면 1바이트 교환 — SD 카드 명령 · 데이터 블록을 이렇게 주고받음', '8 clocks = 1 byte exchanged'], [7.6, 'CS 를 HIGH 로 올리면 끝 — 장치마다 CS 선만 따로 두면 여러 장치 연결', 'CS HIGH ends; one CS per device']]),
+      how: 'SPI 는 클록(SCK) · 보냄(MOSI) · 받음(MISO) · 칩 선택(CS) 네 선을 쓰는 동기식 직렬 통신입니다. 주소 대신 CS 선으로 상대를 고르고, 보내기와 받기를 동시에(전이중) 하며 수 MHz 로 빨라서 SD 카드 · 디스플레이 · CAN 컨트롤러(MCP2515) 에 많이 씁니다.',
+      pts: ['UNO: SCK D13 · MISO D12 · MOSI D11 · CS(SS) D10', 'Mega: 52 · 50 · 51 · 53 / ESP32: 18 · 19 · 23 · 5', 'SPI 모드 0: 클록이 LOW 에서 시작, 올라갈 때 읽음', 'SD.begin(CS 핀) · SPI.transfer(바이트)'],
+      d: (t) => { const u = clamp((t - .6) / 8.6); const fd = SPI.fields.find(f => u >= f.x0 && u < f.x1);
+        return drawDevices([{ x: 110, nm: L('보드(마스터)', 'MCU master'), w: 54 }, { x: 410, nm: L('SD 카드', 'SD card'), w: 50 }], 0, 1, u, fd ? fd.f : '', '#ddd6fe')
+          + tx(260, 96, 'MOSI 0x51 (' + L('읽기 명령', 'read cmd') + ')  ⇄  MISO 0xFE (' + L('데이터 시작', 'data token') + ')', { fs: 10.5, b: 1, c: '#6d28d9' }) + drawTiming(SPI, u, { top: 108, lh: 34 }); } };
+
+    /* =================== CAN 2.0 =================== */
+    function canData(fd){
+      const lanes = [{ k: 'h', nm: 'CAN_H', c: '#dc2626' }, { k: 'l', nm: 'CAN_L', c: '#2563eb' }];
+      const S = []; const D = (b) => ({ h: b ? .5 : .85, l: b ? .5 : .15 });   // 1 = recessive(2.5 V), 0 = dominant
+      const push = (bits, f, fc, w) => bits.forEach(b => S.push({ d: w || 1, v: D(b), f, fc }));
+      S.push({ d: 2, v: D(1), f: L('대기(열성)', 'idle') });
+      push([0], 'SOF', '#fecaca'); push(bitsOf(0x12, 11), 'ID 0x012', '#fde68a');
+      if (fd){ push([0, 0, 1, 0, 1], 'RRS·IDE·FDF·res·BRS', '#e2e8f0'); push([0], 'ESI', '#e2e8f0', .3); push(bitsOf(9, 4), 'DLC', '#ddd6fe', .3); [0x55, 0xAA, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].forEach(v => push(bitsOf(v, 8), L('데이터 12B (2 Mbps)', 'data 12B @2 Mbps'), '#bfdbfe', .25)); push(bitsOf(0x1A5C3, 17), 'CRC17', '#a5f3fc', .3); }
+      else { push([0, 0, 0], 'RTR·IDE·r0', '#e2e8f0'); push(bitsOf(2, 4), 'DLC=2', '#ddd6fe'); push(bitsOf(0x55, 8).concat(bitsOf(0xAA, 8)), L('데이터 55 AA', 'data 55 AA'), '#bfdbfe'); push(bitsOf(0x2E4B, 15), 'CRC15', '#a5f3fc'); }
+      push([1], 'del', '#e2e8f0'); push([0], 'ACK', '#bbf7d0'); push([1], 'del', '#e2e8f0'); push([1, 1, 1, 1, 1, 1, 1], 'EOF', '#e2e8f0'); S.push({ d: 1.5, v: D(1), f: L('대기', 'idle') });
+      return build(lanes, S);
+    }
+    const CAN = canData(false), CANFD = canData(true);
+    const canDraw = (Dt, T, label) => (t) => { const u = clamp((t - .6) / (T - 1.6)); const fd = Dt.fields.find(f => u >= f.x0 && u < f.x1);
+      return drawDevices([{ x: 90, nm: L('노드 A (보냄)', 'node A TX'), w: 52 }, { x: 260, nm: L('노드 B', 'node B') }, { x: 420, nm: L('노드 C', 'node C') }], 0, [1, 2], u, fd ? fd.f : '', '#bbf7d0', { bus: 1, busDy: 30, busC: '#16a34a' })
+        + tx(260, 106, label, { fs: 10, c: '#64748b' }) + drawTiming(Dt, u, { top: 120, lh: 40 }); };
+    K['proto-can'] = { n: ['CAN 통신 (차동 버스 · 메시지 ID)', 'CAN bus'], T: 13,
+      st: ST([[0, '대기: CAN_H · CAN_L 모두 2.5 V (열성 = 1)', 'Idle: both 2.5 V (recessive = 1)'], [1.4, 'SOF: 우성(0) 한 비트 — CAN_H 3.5 V · CAN_L 1.5 V 로 벌어짐', 'SOF: dominant — H 3.5 V, L 1.5 V'],
+        [2, 'ID 11비트: 받는 주소가 아니라 "메시지 이름". 동시에 보내면 ID 가 작은 쪽이 이김(중재)', '11-bit ID names the message; lower ID wins arbitration'], [4.6, 'DLC: 데이터 길이(0~8 바이트) → 데이터 → CRC15 오류 검사', 'DLC, data (0–8 bytes), CRC15'],
+        [10.4, 'ACK: 잘 받은 노드가 우성(0)으로 덮어 대답 → EOF 7비트로 끝', 'ACK slot: receivers answer dominant; 7-bit EOF'], [11.5, '같은 값이 5번 이어지면 반대 비트 1개를 끼움(비트 스터핑) — 동기 유지', 'Bit stuffing after 5 equal bits']]),
+      how: 'CAN 은 자동차 · 공장 설비에서 쓰는 차동 버스 통신입니다. 모든 노드가 CAN_H · CAN_L 한 쌍에 물려 같은 메시지를 듣고, 메시지 ID 를 보고 필요한 것만 가져갑니다. 두 선의 전압 차이(2 V = 우성 0, 0 V = 열성 1)로 비트를 보내 잡음에 강하고, 500 kbps 이면 비트 하나가 2 µs 입니다. 아두이노는 SPI 로 CAN 컨트롤러(MCP2515)에 프레임을 넘기고, ESP32 는 내장 TWAI + 트랜시버(SN65HVD230)를 씁니다.',
+      pts: ['버스 양 끝에 120 Ω 종단 저항', 'CAN.beginPacket(ID) · write() · endPacket()', 'MCP2515 모듈: CS · SCK · MOSI · MISO(SPI) + INT', 'TIME/DIV 50~100 µs 로 프레임 확인'],
+      d: canDraw(CAN, 13, L('모든 노드가 같은 프레임을 듣고, ID 로 골라 받음', 'all nodes hear it; filter by ID')) };
+    K['proto-canfd'] = { n: ['CAN FD 통신 (데이터 구간 고속)', 'CAN FD'], T: 13,
+      st: ST([[0, '중재 구간(SOF · ID)은 일반 CAN 과 같은 속도(500 kbps)', 'Arbitration at nominal rate'], [3.2, 'FDF = 1 이면 FD 프레임, BRS = 1 이면 이 뒤부터 속도를 올림', 'FDF marks FD, BRS switches bit rate'],
+        [4.2, '데이터 구간은 2 Mbps 처럼 빠르게 — 한 번에 최대 64 바이트', 'Data phase up to 2+ Mbps, up to 64 bytes'], [8.8, 'CRC17/21 로 더 강한 오류 검사 → ACK 부터 다시 원래 속도', 'Stronger CRC; back to nominal for ACK']]),
+      how: 'CAN FD(Flexible Data-rate)는 CAN 의 중재 방식은 그대로 두고, 데이터 구간만 더 빠른 비트 속도로 보내며 한 프레임에 최대 64 바이트를 실을 수 있게 한 확장 규격입니다. 많은 센서 데이터를 한 번에 보내야 하는 최신 자동차에서 씁니다.',
+      pts: ['일반 CAN 컨트롤러는 FD 프레임을 못 읽음', 'DLC 9~15 = 12 · 16 · 20 · 24 · 32 · 48 · 64 바이트', '중재 500 kbps / 데이터 2 Mbps 예'],
+      d: canDraw(CANFD, 13, L('BRS 다음부터 비트 폭이 좁아짐 = 빨라짐', 'bits get narrower after BRS')) };
+
+    /* =================== RS-485 + Modbus RTU =================== */
+    function rs485Data(){
+      const lanes = [{ k: 'de', nm: 'DE', c: '#9333ea', idle: 0 }, { k: 'a', nm: 'A', c: '#dc2626' }, { k: 'b', nm: 'B', c: '#2563eb' }];
+      const S = [{ d: 1, v: { de: 0, a: .8, b: .2 }, f: L('수신 대기', 'listen') }, { d: .6, v: { de: 1 }, f: 'DE↑', fc: '#ede9fe' }];
+      const frame = [[0x01, L('주소 01', 'slave 01')], [0x03, L('기능 03', 'FC 03')], [0x00, L('시작 주소', 'start')], [0x00, L('시작 주소', 'start')], [0x00, L('개수', 'qty')], [0x02, L('개수', 'qty')], [0xC4, 'CRC16'], [0x0B, 'CRC16']];
+      const fcs = { [L('주소 01', 'slave 01')]: '#fde68a', [L('기능 03', 'FC 03')]: '#fbcfe8', [L('시작 주소', 'start')]: '#bfdbfe', [L('개수', 'qty')]: '#ddd6fe', CRC16: '#a5f3fc' };
+      frame.forEach(([v, f]) => { const bits = [0].concat(bitsOf(v, 8).reverse(), [1]); bits.forEach(b => S.push({ d: .16, v: { a: b ? .8 : .2, b: b ? .2 : .8 }, f, fc: fcs[f] })); });
+      S.push({ d: .6, v: { de: 0 }, f: 'DE↓', fc: '#ede9fe' }, { d: 1, f: L('응답 대기', 'wait reply') });
+      return build(lanes, S);
+    }
+    const R485 = rs485Data();
+    K['proto-rs485'] = { n: ['RS-485 + Modbus RTU', 'RS-485 / Modbus RTU'], T: 12,
+      st: ST([[0, '평소에는 모두 수신 상태(DE = LOW) — 한 쌍의 선(A · B)을 여럿이 공유', 'All nodes listen; one A/B pair shared'], [1.3, '보낼 때만 DE 를 HIGH 로 → 트랜시버가 선을 구동(반이중)', 'Raise DE to drive the bus (half duplex)'],
+        [2, 'UART 바이트가 A · B 에 반대 모양으로 실림: A − B > 0 이면 1, < 0 이면 0', 'UART bytes ride as A−B differential'], [3, 'Modbus RTU 요청: [국번 01][기능 03 = 레지스터 읽기][시작 주소][개수][CRC16]', 'Modbus RTU: [slave][FC][addr][qty][CRC16]'],
+        [9.6, 'DE 를 LOW 로 돌리고 슬레이브의 응답 [01][03][바이트 수][값 …][CRC] 를 기다림', 'Release DE and wait for the reply']]),
+      how: 'RS-485 는 UART 신호를 MAX485 같은 트랜시버로 A · B 차동 신호로 바꿔 최대 1.2 km, 32대까지 한 버스에 연결하는 방식입니다. 한 번에 한 장치만 말할 수 있어(반이중) DE/RE 핀으로 보내기 · 받기를 바꿉니다. 그 위에서 가장 많이 쓰는 규약이 Modbus RTU 로, 마스터가 국번(1~247) · 기능 코드(03 읽기 · 06 한 개 쓰기 · 16 여러 개 쓰기) · 레지스터 주소를 담아 묻고, 해당 슬레이브만 대답합니다. 끝의 CRC16 으로 오류를 검사합니다.',
+      pts: ['A-A, B-B 끼리 연결 · 양 끝 120 Ω', 'DI = 보드 TX, RO = 보드 RX, DE · RE = 방향 핀', 'ModbusMaster.readHoldingRegisters(주소, 개수)', '프레임 사이 3.5 문자 시간 이상 쉬어야 구분됨'],
+      d: (t) => { const u = clamp((t - .6) / 10.6); const fd = R485.fields.find(f => u >= f.x0 && u < f.x1);
+        return drawDevices([{ x: 90, nm: L('마스터', 'master'), w: 50 }, { x: 260, nm: L('국번 01', 'slave 01') }, { x: 420, nm: L('국번 02', 'slave 02') }], 0, 1, u, fd ? fd.f : '', '#a5f3fc', { bus: 1, busDy: 30, busC: '#0891b2' })
+          + tx(260, 106, L('국번 02 도 듣지만, 주소가 01 이므로 무시', 'slave 02 hears it but ignores (address 01)'), { fs: 10, c: '#64748b' }) + drawTiming(R485, u, { top: 120, lh: 36 }); } };
+
+    /* =================== DHT 단선 =================== */
+    function dhtData(){
+      const lanes = [{ k: 'd', nm: 'DATA', c: '#16a34a' }];
+      const S = [{ d: .8, v: { d: 1 }, f: L('대기', 'idle') }, { d: 2.2, v: { d: 0 }, f: L('시작 18 ms', 'start 18 ms'), fc: '#fecaca' }, { d: .3, v: { d: 1 }, f: L('응답', 'resp'), fc: '#ddd6fe' }, { d: .5, v: { d: 0 }, f: L('응답', 'resp'), fc: '#ddd6fe' }, { d: .5, v: { d: 1 }, f: L('응답', 'resp'), fc: '#ddd6fe' }];
+      bitsOf(45, 8).forEach(b => S.push({ d: .35, v: { d: 0 }, f: L('습도 45', 'RH 45'), fc: '#bfdbfe' }, { d: b ? .5 : .2, v: { d: 1 }, f: L('습도 45', 'RH 45'), fc: '#bfdbfe' }));
+      S.push({ d: .35, v: { d: 0 }, f: '…', fc: '#e2e8f0' }, { d: .8, v: { d: 1 }, f: L('… 온도 · 체크섬', '… temp · checksum'), fc: '#e2e8f0' });
+      return build(lanes, S);
+    }
+    const DHT = dhtData();
+    K['proto-dht'] = { n: ['DHT 단선(1선) 통신', 'DHT single-wire'], T: 10,
+      st: ST([[0, '보드가 DATA 선을 18 ms 동안 LOW 로 끌어 "측정해 줘" 신호', 'MCU pulls DATA LOW 18 ms'], [3.4, '센서가 80 µs LOW · 80 µs HIGH 로 대답', 'Sensor answers 80 µs LOW/HIGH'],
+        [4.6, '40비트: 비트마다 50 µs LOW 뒤 HIGH 길이로 구분 — 26 µs = 0, 70 µs = 1', '40 bits: HIGH length 26 µs = 0, 70 µs = 1'], [8, '습도(2바이트) · 온도(2바이트) · 체크섬(1바이트)', 'RH 2 bytes, T 2 bytes, checksum']]),
+      how: 'DHT11/22 는 선 하나로 주고받는 단선 통신입니다. 클록이 없어 HIGH 가 유지되는 시간의 길이로 0 과 1 을 구분하며, 한 번 읽는 데 약 4 ms 가 걸리고 1~2 초에 한 번만 읽을 수 있습니다.',
+      pts: ['DATA 선에 4.7~10 kΩ 풀업', '2 초보다 자주 읽지 말 것', 'dht.readHumidity() · readTemperature()'],
+      d: (t) => { const u = clamp((t - .6) / 8.6); const fd = DHT.fields.find(f => u >= f.x0 && u < f.x1);
+        return drawDevices([{ x: 110, nm: L('보드', 'MCU'), w: 46 }, { x: 410, nm: 'DHT11', w: 46 }], u < .3 ? 0 : 1, u < .3 ? 1 : 0, u < .3 ? u / .3 : (u - .3) / .7, fd ? fd.f : '', '#bbf7d0') + drawTiming(DHT, u, { top: 130, lh: 70 }); } };
+
+    /* =================== Modbus TCP (이더넷) =================== */
+    const MBT = [[L('트랜잭션 ID', 'trans ID'), '00 01', '#fde68a'], [L('프로토콜 ID', 'proto ID'), '00 00', '#fde68a'], [L('길이', 'length'), '00 0F', '#fde68a'], [L('유닛 ID', 'unit'), '01', '#fde68a'],
+      [L('기능 16', 'FC 16'), '10', '#fbcfe8'], [L('시작 D0', 'start D0'), '00 00', '#bfdbfe'], [L('개수 4', 'qty 4'), '00 04', '#ddd6fe'], [L('바이트 8', 'bytes 8'), '08', '#ddd6fe'], [L('값', 'values'), '00 0C 00 22 …', '#bbf7d0']];
+    K['proto-mbtcp'] = { n: ['이더넷 Modbus TCP', 'Modbus TCP over Ethernet'], T: 11,
+      st: ST([[0, 'PLC · HMI 가 IP 주소로 상대를 찾고 TCP 연결(포트 502)', 'Connect by IP, TCP port 502'], [1.5, 'MBAP 헤더: 트랜잭션 ID · 프로토콜 ID(0) · 길이 · 유닛 ID', 'MBAP header'],
+        [4, 'PDU: 기능 코드(03 읽기 · 06/16 쓰기) + 시작 주소 + 개수 + 값', 'PDU: function code + address + quantity + data'], [7, '스위칭 허브가 목적지 포트로만 전달 → 상대가 같은 트랜잭션 ID 로 응답', 'Switch forwards; reply carries the same transaction ID']]),
+      how: 'Modbus TCP 는 Modbus 의 "몇 번 레지스터를 읽어라/써라" 요청을 이더넷(TCP/IP) 패킷에 실은 것입니다. RTU 의 국번 · CRC 대신 MBAP 헤더를 붙이고, 오류 검사는 이더넷 · TCP 가 맡습니다. 이 시뮬레이터의 PLC 데이터 링크는 마스터 PLC 의 D 레지스터를 매 스캔 슬레이브 PLC 의 D 레지스터로 보내는 FC16(여러 레지스터 쓰기)으로 나타냅니다.',
+      pts: ['같은 서브넷(예: 192.168.0.x)이어야 통신', '포트 502 · 유닛 ID 로 장치 구분', 'HMI 는 같은 방식으로 주기적으로 값을 읽고(폴링) 버튼을 누르면 씀'],
+      d: (t) => { const u = clamp((t - .6) / 9); const nF = MBT.length, k = Math.min(nF - 1, Math.floor(u * nF * 1.15));
+        let s = drawDevices([{ x: 80, nm: 'PLC #1', w: 44 }, { x: 260, nm: 'SWITCH', w: 44 }, { x: 440, nm: 'PLC #2', w: 44 }], 0, 2, u < .5 ? u * 2 : 0, u < .5 ? 'FC16 →' : '', '#bae6fd');
+        if (u >= .5){ const v = (u - .5) * 2; s += rect(260 + 180 * v - 30, 23, 60, 18, '#bae6fd', { rx: 9, sw: 1 }) + tx(260 + 180 * v, 36, 'FC16 →', { fs: 9, b: 1 }); }
+        let x = 30; s += tx(260, 112, L('패킷 구조 (요청: PLC #1 의 D0~D3 → PLC #2)', 'Packet (request: D0–D3 → PLC #2)'), { fs: 11, b: 1 });
+        MBT.forEach(([nm, hx, c], i) => { const w = i === nF - 1 ? 96 : (hx.length > 3 ? 52 : 40); const act = i === k, done = i <= k;
+          s += rect(x, 130, w - 3, 40, done ? c : '#f1f5f9', { s: act ? '#b45309' : '#cbd5e1', sw: act ? 2 : 1 }) + tx(x + w / 2 - 1.5, 146, hx, { fs: 9.5, b: 1, ex: 'font-family="monospace"' }) + tx(x + w / 2 - 1.5, 162, nm, { fs: 8.5 }); x += w; });
+        s += tx(30 + 4 * 46 / 2 + 40, 190, '◀ MBAP ' + L('헤더', 'header') + ' ▶', { fs: 10, c: '#b45309', b: 1 }) + tx(380, 190, '◀ PDU (' + L('기능 + 데이터', 'function + data') + ') ▶', { fs: 10, c: '#be185d', b: 1 });
+        s += tx(260, 230, L('응답: [같은 트랜잭션 ID][10][시작 주소][개수] — "잘 썼음"', 'Reply echoes transaction ID, FC 10, address, quantity'), { fs: 10.5, c: '#0f766e' });
+        return s; } };
+
+    /* =================== 부품 원리 + 통신 규약 이어 붙이기 =================== */
+    function combo(id, baseId, protoIds, note){
+      const B = K[baseId] || K.generic, Ps = protoIds.map(p => K[p]).filter(Boolean); if (!B || !Ps.length) return;
+      const parts = [B].concat(Ps); let T = 0; const offs = parts.map(p => { const o = T; T += p.T; return o; });
+      K[id] = {
+        n: [B.n[0] + ' + 📡 ' + Ps.map(p => p.n[0].split(' (')[0]).join(' · '), B.n[1] + ' + ' + Ps.map(p => p.n[1]).join(' / ')], T,
+        st: parts.flatMap((p, i) => p.st.map(s => [s[0] + offs[i], (i ? '📡 ' : '') + s[1], (i ? '📡 ' : '') + (s[2] || s[1])])),
+        how: B.how + Ps.map(p => '\n\n📡 ' + p.n[0] + ' — ' + p.how).join('') + (note ? '\n\n' + note : ''),
+        pts: B.pts.concat(Ps.flatMap(p => p.pts.map(x => '📡 ' + x))),
+        d: (t) => { let i = parts.length - 1; while (i > 0 && t < offs[i]) i--; const s = parts[i].d(t - offs[i]);
+          return s + (i ? `<rect x="6" y="6" width="150" height="20" rx="10" fill="#0e7490"/><text x="81" y="20" font-size="11" fill="#fff" text-anchor="middle" font-weight="700" font-family="'Malgun Gothic',sans-serif">📡 ${esc(L('통신 규약', 'protocol'))} ${i}/${parts.length - 1}</text>` : ''); }
+      };
+      return id;
+    }
+    const RULES = [
+      ['lcdi2c', 'lcd', ['proto-i2c'], L('이 LCD 의 I2C 백팩(PCF8574)은 4비트 방식이라 글자 하나에 I2C 전송 6번(상위 4비트 · 하위 4비트마다 값 → EN 펄스)이 필요합니다.', '')],
+      ['oled', 'oled', ['proto-i2c']], ['(imu-mpu6050|gyro|accel)', 'imu', ['proto-i2c']], ['bme280', 'thermo', ['proto-i2c']],
+      ['btmodule', 'wireless', ['proto-uart'], L('HC-05 는 보드와 UART(9600 bps)로 연결되고, 받은 바이트를 블루투스 전파로 그대로 전달합니다.', '')],
+      ['pmsensor', 'pm', ['proto-uart']],
+      ['canmodule', 'diffbus', ['proto-can', 'proto-spi'], L('MCP2515 CAN 모듈은 보드와는 SPI 로, 다른 노드와는 CAN 버스로 통신합니다.', '')],
+      ['canfdmodule', 'diffbus', ['proto-canfd', 'proto-spi']], ['sn65hvd230', 'diffbus', ['proto-can'], L('SN65HVD230 은 ESP32 의 TWAI(CAN) 컨트롤러 신호(CTX · CRX, 3.3 V)를 CAN_H · CAN_L 차동 신호로 바꾸는 트랜시버입니다.', '')],
+      ['rs485module', 'diffbus', ['proto-rs485', 'proto-uart']], ['rs485servo', 'servo', ['proto-rs485']],
+      ['sdcard', 'generic', ['proto-spi']], ['max7219s', 'seg7', ['proto-spi']], ['max7219m', 'matrix', ['proto-spi']],
+      ['(dht11|temphumid)', 'humid', ['proto-dht']],
+      ['comm-ethernet', 'network', ['proto-mbtcp']], ['comm-switch', 'network', ['proto-mbtcp']], ['comm-serial', 'diffbus', ['proto-can', 'proto-rs485']], ['hmi-panel', 'hmi', ['proto-mbtcp']],
+    ];
+    const add = [];
+    RULES.forEach(([re, base, protos, note]) => {
+      const rx = new RegExp('^' + re + '$');
+      let b = base; if (b == null){ try { b = PR.kindOf(re.replace(/[()]/g, '').split('|')[0]).k; } catch (e) { b = 'generic'; } }
+      if (!K[b]) b = 'generic';
+      const id = 'pc-' + re.replace(/[^a-z0-9]+/gi, '-') ; if (combo(id, b, protos, note)) add.push([rx, id]);
+    });
+    MAP.unshift(...add);
+    try { const st = document.createElement('style'); st.textContent = '.pr-how{white-space:pre-line}'; document.head.appendChild(st); } catch (e) {}
+    return true;
+  };
+  if (!start()){ let n = 0; const h = setInterval(() => { if (start() || ++n > 40) clearInterval(h); }, 250); }
 })();
 
 </script>
